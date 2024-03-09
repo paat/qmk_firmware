@@ -193,41 +193,41 @@ void process_record_factory_reset(uint16_t keycode, keyrecord_t *record) {
     }
 }
 
-#ifdef LED_MATRIX_ENABLE
-bool led_matrix_indicators_user(void) {
-    if (factory_reset_ind_state) {
-        led_matrix_set_value_all(factory_reset_ind_state % 2 ? 0 : 255);
-    }
+// #ifdef LED_MATRIX_ENABLE
+// bool led_matrix_indicators_user(void) {
+//     if (factory_reset_ind_state) {
+//         led_matrix_set_value_all(factory_reset_ind_state % 2 ? 0 : 255);
+//     }
 
-    return true;
-}
-#endif
+//     return true;
+// }
+// #endif
 
-#ifdef RGB_MATRIX_ENABLE
-bool rgb_matrix_indicators_user(void) {
-    if (factory_reset_ind_state) {
-        backlight_test_mode = BACKLIGHT_TEST_OFF;
-        rgb_matrix_set_color_all(factory_reset_ind_state % 2 ? 0 : 255, 0, 0);
-    } else if (backlight_test_mode) {
-        switch (backlight_test_mode) {
-            case BACKLIGHT_TEST_WHITE:
-                rgb_matrix_set_color_all(255, 255, 255);
-                break;
-            case BACKLIGHT_TEST_RED:
-                rgb_matrix_set_color_all(255, 0, 0);
-                break;
-            case BACKLIGHT_TEST_GREEN:
-                rgb_matrix_set_color_all(0, 255, 0);
-                break;
-            case BACKLIGHT_TEST_BLUE:
-                rgb_matrix_set_color_all(0, 0, 255);
-                break;
-        }
-    }
+// #ifdef RGB_MATRIX_ENABLE
+// bool rgb_matrix_indicators_user(void) {
+//     if (factory_reset_ind_state) {
+//         backlight_test_mode = BACKLIGHT_TEST_OFF;
+//         rgb_matrix_set_color_all(factory_reset_ind_state % 2 ? 0 : 255, 0, 0);
+//     } else if (backlight_test_mode) {
+//         switch (backlight_test_mode) {
+//             case BACKLIGHT_TEST_WHITE:
+//                 rgb_matrix_set_color_all(255, 255, 255);
+//                 break;
+//             case BACKLIGHT_TEST_RED:
+//                 rgb_matrix_set_color_all(255, 0, 0);
+//                 break;
+//             case BACKLIGHT_TEST_GREEN:
+//                 rgb_matrix_set_color_all(0, 255, 0);
+//                 break;
+//             case BACKLIGHT_TEST_BLUE:
+//                 rgb_matrix_set_color_all(0, 0, 255);
+//                 break;
+//         }
+//     }
 
-    return true;
-}
-#endif
+//     return true;
+// }
+// #endif
 
 void factory_reset_task(void) {
     if (factory_reset_timer) factory_timer_check();
