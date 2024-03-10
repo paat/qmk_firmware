@@ -26,7 +26,7 @@ enum layers{
 };
 
 enum custom_keycodes {
-  KC_LBRC_ET_US = SAFE_RANGE,   // [
+  KC_LBRC_ET_US = NEW_SAFE_RANGE,   // [
   KC_RBRC_ET_US,                // ]
   KC_COMM_ET_US,                // ,
   KC_DOT_ET_US,                  // .
@@ -44,7 +44,8 @@ enum custom_keycodes {
   KC_QUOT_ET_US,  //"
   KC_NUHS_ET_US,
   KC_SLSH_ET_US,
-  KC_NUBS_ET_US
+  KC_NUBS_ET_US,
+  KC_M1
 };
 
 const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
@@ -67,7 +68,7 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
     [WIN_BASE] = LAYOUT_93_iso(
         KC_MUTE,        KC_ESC,             KC_F1,    KC_F2,    KC_F3,    KC_F4,    KC_F5,    KC_F6,    KC_F7,    KC_F8,    KC_F9,    KC_F10,   KC_F11,     KC_F12,   KC_PSCR,  KC_CTANA, RGB_MOD,
                         KC_GRV,   KC_1,     KC_2,     KC_3,     KC_4,     KC_5,     KC_6,     KC_7,     KC_8,     KC_9,     KC_0,     KC_MINS,  KC_EQL,     KC_BSPC,  KC_INS,   KC_HOME,  KC_PGUP,
-        TG(WIN_ET_US),  KC_TAB,   KC_Q,     KC_W,     KC_E,     KC_R,     KC_T,     KC_Y,     KC_U,     KC_I,     KC_O,     KC_P,     KC_LBRC,  KC_RBRC,              KC_DEL,   KC_END,   KC_PGDN,
+        KC_M1,          KC_TAB,   KC_Q,     KC_W,     KC_E,     KC_R,     KC_T,     KC_Y,     KC_U,     KC_I,     KC_O,     KC_P,     KC_LBRC,  KC_RBRC,              KC_DEL,   KC_END,   KC_PGDN,
         _______,        KC_CAPS,  KC_A,     KC_S,     KC_D,     KC_F,     KC_G,     KC_H,     KC_J,     KC_K,     KC_L,     KC_SCLN,  KC_QUOT,  KC_NUHS,    KC_ENT,
         _______,        KC_LSFT,  KC_NUBS,  KC_Z,     KC_X,     KC_C,     KC_V,     KC_B,     KC_N,     KC_M,     KC_COMM,  KC_DOT,   KC_SLSH,              KC_RSFT,            KC_UP,
         _______,        KC_LCTL,  KC_LWIN,  KC_LALT,                                KC_SPC,                                 KC_RALT,  KC_RWIN,  MO(WIN_FN), KC_RCTL,  KC_LEFT,  KC_DOWN,  KC_RGHT),
@@ -83,7 +84,7 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
     [WIN_ET_US] = LAYOUT_93_iso(
         KC_MUTE,  KC_ESC,                       KC_F1,      KC_F2,      KC_F3,      KC_F4,      KC_F5,      KC_F6,      KC_F7,      KC_F8,          KC_F9,          KC_F10,         KC_F11,         KC_F12,   KC_PSCR,  KC_CTANA, RGB_MOD,
                   KC_GRV_ET_US, KC_1,           KC_2_ET_US, KC_3,       KC_4_ET_US, KC_5,       KC_6_ET_US, KC_7_ET_US, KC_8_ET_US, KC_9_ET_US,     KC_0_ET_US,     KC_MINS_ET_US,  KC_EQL_ET_US,   KC_BSPC,  KC_INS,   KC_HOME,  KC_PGUP,
-        _______,  KC_TAB,       KC_P,           KC_W,       KC_E,       KC_R,       KC_T,       KC_Y,       KC_U,       KC_I,       KC_O,           KC_P,           KC_LBRC_ET_US,  KC_RBRC_ET_US,            KC_DEL,   KC_END,   KC_PGDN,
+        KC_M1,    KC_TAB,       KC_P,           KC_W,       KC_E,       KC_R,       KC_T,       KC_Y,       KC_U,       KC_I,       KC_O,           KC_P,           KC_LBRC_ET_US,  KC_RBRC_ET_US,            KC_DEL,   KC_END,   KC_PGDN,
         _______,  KC_CAPS,      KC_A,           KC_S,       KC_D,       KC_F,       KC_G,       KC_H,       KC_J,       KC_K,       KC_L,           KC_SCLN_ET_US,  KC_QUOT_ET_US,  KC_NUHS_ET_US,        KC_ENT,
         _______,  KC_LSFT,      KC_NUBS_ET_US,  KC_Z,       KC_X,       KC_C,       KC_V,       KC_B,       KC_N,       KC_M,       KC_COMM_ET_US,  KC_DOT_ET_US,   KC_SLSH_ET_US,                        KC_RSFT,            KC_UP,
         _______,  KC_LCTL,      KC_LWIN,        KC_LALT,                                KC_SPC,                                       KC_RALT,         KC_RWIN,        MO(WIN_FN),     KC_RCTL,  KC_LEFT,  KC_DOWN,  KC_RGHT),
@@ -122,12 +123,19 @@ void tap_wo_modifier(uint16_t keycode) {
     set_mods(mods);
 }
 
-void release_shift(void) {
-
-}
-
 bool process_record_user(uint16_t keycode, keyrecord_t *record) {
   switch (keycode) {
+    case KC_M1:
+      if (record->event.pressed) {
+        layer_invert(WIN_ET_US);
+        if (layer_state_is(WIN_ET_US)) {
+            rgb_matrix_mode(RGB_MATRIX_CUSTOM_et_us_key_map);
+        }
+        else {
+            rgb_matrix_mode(RGB_MATRIX_CUSTOM_default_key_map);
+        }
+      }
+      return false;
     case KC_LBRC_ET_US:
       if (record->event.pressed) {
         if (is_shift_pressed()) {
@@ -299,23 +307,26 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
         }
       }
       return false;
-  }
+      }
 
   return true; // Process all other keycodes normally
 }
 
-bool rgb_matrix_indicators_user(void) {
-    if (IS_LAYER_ON(WIN_ET_US)) {
-        for (int i = 0; i < RGB_MATRIX_LED_COUNT; i++) {
-            rgb_matrix_set_color(i, 0, 255, 0); // Set all keys to green
-        }
-    } else {
-        for (int i = 0; i < RGB_MATRIX_LED_COUNT; i++) {
-            rgb_matrix_set_color(i, 0, 0, 255); // Set all keys to blue
+void keyboard_post_init_user(void) {
+    rgb_matrix_mode(RGB_MATRIX_CUSTOM_default_key_map);
+}
+
+bool rgb_matrix_indicators_advanced_user(uint8_t led_min, uint8_t led_max) {
+    if (host_keyboard_led_state().caps_lock) {
+        for (uint8_t i = led_min; i < led_max; i++) {
+            if (g_led_config.flags[i] & LED_FLAG_KEYLIGHT) {
+                rgb_matrix_set_color(i, RGB_RED);
+            }
         }
     }
-    return true;
+    return false;
 }
+
 
 #if defined(ENCODER_MAP_ENABLE)
 const uint16_t PROGMEM encoder_map[][NUM_ENCODERS][2] = {
