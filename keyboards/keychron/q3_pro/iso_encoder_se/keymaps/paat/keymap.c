@@ -84,7 +84,7 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
     [WIN_ET_US] = LAYOUT_93_iso(
         KC_MUTE,  KC_ESC,                       KC_F1,      KC_F2,      KC_F3,      KC_F4,      KC_F5,      KC_F6,      KC_F7,      KC_F8,          KC_F9,          KC_F10,         KC_F11,         KC_F12,   KC_PSCR,  KC_CTANA, RGB_MOD,
                   KC_GRV_ET_US, KC_1,           KC_2_ET_US, KC_3,       KC_4_ET_US, KC_5,       KC_6_ET_US, KC_7_ET_US, KC_8_ET_US, KC_9_ET_US,     KC_0_ET_US,     KC_MINS_ET_US,  KC_EQL_ET_US,   KC_BSPC,  KC_INS,   KC_HOME,  KC_PGUP,
-        KC_M1,    KC_TAB,       KC_P,           KC_W,       KC_E,       KC_R,       KC_T,       KC_Y,       KC_U,       KC_I,       KC_O,           KC_P,           KC_LBRC_ET_US,  KC_RBRC_ET_US,            KC_DEL,   KC_END,   KC_PGDN,
+        KC_M1,    KC_TAB,       KC_Q,           KC_W,       KC_E,       KC_R,       KC_T,       KC_Y,       KC_U,       KC_I,       KC_O,           KC_P,           KC_LBRC_ET_US,  KC_RBRC_ET_US,            KC_DEL,   KC_END,   KC_PGDN,
         _______,  KC_CAPS,      KC_A,           KC_S,       KC_D,       KC_F,       KC_G,       KC_H,       KC_J,       KC_K,       KC_L,           KC_SCLN_ET_US,  KC_QUOT_ET_US,  KC_NUHS_ET_US,        KC_ENT,
         _______,  KC_LSFT,      KC_NUBS_ET_US,  KC_Z,       KC_X,       KC_C,       KC_V,       KC_B,       KC_N,       KC_M,       KC_COMM_ET_US,  KC_DOT_ET_US,   KC_SLSH_ET_US,                        KC_RSFT,            KC_UP,
         _______,  KC_LCTL,      KC_LWIN,        KC_LALT,                                KC_SPC,                                       KC_RALT,         KC_RWIN,        MO(WIN_FN),     KC_RCTL,  KC_LEFT,  KC_DOWN,  KC_RGHT),
@@ -99,7 +99,9 @@ void tap_with_modifier(uint16_t keycode, uint16_t modifier) {
     uint8_t mods = get_mods();
     clear_mods();
     register_mods(MOD_BIT(modifier)); // Press specified modifier
+    wait_ms(5);
     tap_code(keycode);               // Then press the specified keycode
+    wait_ms(5);
     unregister_mods(MOD_BIT(modifier)); // Release specified modifier
     set_mods(mods);
 }
@@ -108,9 +110,11 @@ void tap_ascii_code(uint16_t key1, uint16_t key2, uint16_t key3) {
     uint8_t mods = get_mods();
     clear_mods();
     register_mods(MOD_BIT(KC_LALT)); // Press Left ALT
+    wait_ms(5);
     tap_code(key1);
     tap_code(key2);
     tap_code(key3);
+    wait_ms(5);
     unregister_mods(MOD_BIT(KC_LALT)); // Release specified modifier
     set_mods(mods);
 }
@@ -119,7 +123,9 @@ void tap_ascii_code(uint16_t key1, uint16_t key2, uint16_t key3) {
 void tap_wo_modifier(uint16_t keycode) {
     uint8_t mods = get_mods();
     clear_mods();
+    wait_ms(5);
     tap_code(keycode);
+    wait_ms(5);
     set_mods(mods);
 }
 
