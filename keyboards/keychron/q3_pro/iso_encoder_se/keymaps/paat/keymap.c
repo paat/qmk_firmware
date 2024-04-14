@@ -15,6 +15,14 @@
  */
 
 #include QMK_KEYBOARD_H
+#include "sha256.h"
+
+static uint32_t pin_input = 0; // for processing ongoing input
+static uint32_t pin = 0;  // store pin after enter key
+const char *password_salt = "MyPwSalt";
+const char ALLOWED_PW_CHARS[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!#.,";
+const char *mandatoryPrefix = "!5xY";
+
 
 // clang-format off
 enum layers{
@@ -65,8 +73,11 @@ enum custom_keycodes {
   KC_PW_7,
   KC_PW_8,
   KC_PW_9,
+  KC_PW_ENT,
   KC_PW_X,
   KC_PW_C,
+  KC_PW_K,
+  KC_PW_PRNT
 };
 
 const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
@@ -119,10 +130,10 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
         _______,  _______,  _______,  _______,                                _______,                                _______,  _______,  _______,    _______,  _______,  _______,  _______),
 
     [M3_PW] = LAYOUT_93_iso(
-        _______,  KC_PW_LOCK,          KC_F1,    KC_F2,    KC_F3,    KC_F4,    KC_F5,    KC_F6,    KC_F7,    KC_F8,    KC_F9,    _______,   _______,     _______,   _______,  _______, _______,
-                  _______,   KC_PW_1,  KC_PW_2,  KC_PW_3,  KC_PW_4,  KC_PW_5,  KC_PW_6,  KC_PW_7,  KC_PW_8,  KC_PW_9,  KC_PW_0,     _______,  _______, _______,    _______,   _______,  _______,
+        _______,  KC_PW_LOCK,          _______,    _______,    _______,    _______,    _______,    _______,    _______,    _______,    _______,    _______,   _______,     _______,   _______,  _______, _______,
+                  KC_PW_PRNT,   KC_PW_1,  KC_PW_2,  KC_PW_3,  KC_PW_4,  KC_PW_5,  KC_PW_6,  KC_PW_7,  KC_PW_8,  KC_PW_9,  KC_PW_0,     _______,  _______, _______,    _______,   _______,  _______,
         _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,              _______,  _______,  _______,
-        _______,  _______,  _______, _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,    _______,
+        _______,  _______,  _______, _______,  _______,  _______,  _______,  _______,  _______,   KC_PW_K,  _______,  _______,  _______,  _______,    KC_PW_ENT,
         _______,  _______,  _______,  KC_Z,     KC_PW_X,  KC_PW_C,     KC_V,     KC_B,     KC_N,     KC_M,     _______,  _______,   _______,              _______,            _______,
         _______,  _______,  _______,  _______,                                _______,                                _______,  _______,  _______,    _______,  _______,  _______,  _______),
 };
@@ -166,10 +177,141 @@ void tap_wo_modifier(uint16_t keycode) {
     set_mods(mods);
 }
 
-bool pin_unlocked = false;
-int pin_index = 0;
-const uint16_t correct_pin[] = {KC_PW_1, KC_PW_2, KC_PW_3, KC_PW_4};  // Your PIN
-#define PIN_LENGTH 4
+void tap_int_value(int32_t value) {
+    if (value < 0) {
+        tap_code(KC_MINS);  // Handle negative numbers
+        value = -value;     // Make the value positive
+    }
+
+    uint32_t divisor = value;
+    while (divisor > 0) {
+        int digit = divisor % 10;
+        divisor = divisor / 10;
+        switch (digit) {
+            case 0:
+                tap_wo_modifier(KC_0);
+                break;
+            case 1:
+                tap_wo_modifier(KC_1);
+                break;
+            case 2:
+                tap_wo_modifier(KC_2);
+                break;
+            case 3:
+                tap_wo_modifier(KC_3);
+                break;
+            case 4:
+                tap_wo_modifier(KC_4);
+                break;
+            case 5:
+                tap_wo_modifier(KC_5);
+                break;
+            case 6:
+                tap_wo_modifier(KC_6);
+                break;
+            case 7:
+                tap_wo_modifier(KC_7);
+                break;
+            case 8:
+                tap_wo_modifier(KC_8);
+                break;
+            case 9:
+                tap_wo_modifier(KC_9);
+                break;
+            default:
+                send_string_with_delay("Undefined", 10);
+                break;
+
+        }
+
+    }
+}
+
+
+void tap_char(char c) {
+    if (c >= '0' && c <= '9') {
+        tap_int_value(c - '0');
+    } else if (c >= 'a' && c <= 'z') {
+        tap_wo_modifier(KC_A);
+    } else if (c >= 'A' && c <= 'Z') {
+        tap_with_modifier(KC_A, KC_LSFT);
+    } else {
+        tap_with_modifier(KC_1, KC_LSFT); //adds !
+    }
+}
+
+void hash_function(const char* input, uint8_t* output) {
+    //uint8_t hash[32];  // Buffer for the raw hash output
+    uint32_t state[8]; // State for the SHA-256 computation
+    //char buf[3];       // Temporary buffer for formatting each byte
+
+    // Initialize the SHA-256 state
+    sha256_init(state);
+
+    // Update the hash with the input data
+    sha256_update(state, (const uint8_t *)input, strlen(input));
+
+    // Finalize the hash
+    //sha256_final(hash, state);
+    sha256_final(output, state);
+
+    // Convert hash bytes to a hexadecimal string
+    //output[0] = '\0';  // Start with an empty string
+    //for (int i = 0; i < 32; i++) {
+    //    snprintf(buf, sizeof(buf), "%02x", hash[i]);
+    //    strcat(output, buf);  // Append the hex string
+    //}
+}
+
+void type_password(uint8_t* hash) {
+    int char_count = 0; // Initialize a counter for the characters
+    size_t length = strlen(ALLOWED_PW_CHARS);
+    while (char_count < 12) { // Only loop for the first 12 characters
+        uint8_t i = hash[char_count] % length;
+        char ascii_code = pgm_read_byte(&ALLOWED_PW_CHARS[i]);
+        if (!ascii_code) break; // Break if the end of the string is reached prematurely
+
+        send_char(ascii_code);
+        ++char_count; // Increment the character counter
+
+        // interval
+        {
+            uint8_t ms = 10;
+            while (ms--)
+                wait_ms(1);
+        }
+    }
+    send_string_with_delay(mandatoryPrefix, 10);
+}
+
+
+void generate_password(char pressed_key) {
+    long pin = 123456; // Assuming you have a pin number. Make sure to define or fetch it appropriately.
+    char pin_str[12];  // Buffer for the PIN string
+    snprintf(pin_str, sizeof(pin_str), "%ld", pin);  // Convert PIN number to string
+
+    // Allocate buffer for the salted input (PIN string + salt + 1 for the pressed key)
+    size_t input_size = strlen(pin_str) + strlen(password_salt) + 2; // +2 for the pressed key and the null terminator
+    char salted_input[input_size];
+    memset(salted_input, 0, input_size);  // Clear the buffer
+
+    strncpy(salted_input, pin_str, sizeof(salted_input) - 1);  // Start with the PIN string
+    strncat(salted_input, password_salt, sizeof(salted_input) - strlen(salted_input) - 1);  // Safely append the salt
+
+    // Append the pressed key to the salted input, ensuring there is room for the null terminator
+    size_t current_length = strlen(salted_input);
+    if (current_length < sizeof(salted_input) - 1) {
+        salted_input[current_length] = pressed_key;
+        salted_input[current_length + 1] = '\0'; // Ensure null termination
+    }
+
+    // Buffer to hold the hashed output
+    uint8_t hash[32];  // Adjust size based on the hash function output
+    hash_function(salted_input, hash);
+
+    // Type out the hashed password
+    type_password(hash);
+}
 
 bool process_record_user(uint16_t keycode, keyrecord_t *record) {
   static bool win_key_pressed = false;
@@ -395,54 +537,54 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
     case KC_L:
       if (record->event.pressed && win_key_pressed) {
           // Lock the keyboard or switch layers when Win+L is pressed
-          pin_unlocked = false;  // Reset the unlock state
+          pin = 0;
+          pin_input = 0;
       }
       return true;
-    case KC_PW_0:
-    case KC_PW_1:
-    case KC_PW_2:
-    case KC_PW_3:
-    case KC_PW_4:
-    case KC_PW_5:
-    case KC_PW_6:
-    case KC_PW_7:
-    case KC_PW_8:
-    case KC_PW_9:
-      if (!pin_unlocked && record->event.pressed) {
-        // Check if the pressed key is part of the PIN sequence
-        if (keycode == correct_pin[pin_index]) {
-            pin_index++;
-        } else {
-            pin_index = 0;  // Reset PIN index if wrong key is pressed
-        }
-        if (pin_index == PIN_LENGTH) {
-            pin_unlocked = true;
-        } else {
-            pin_unlocked = false;  // Reset unlock if PIN is incorrect
-        }
-        return false;  // Block all other key processing when entering PIN
+    case KC_PW_0 ... KC_PW_9:
+      if (record->event.pressed) {
+        pin_input = pin_input * 10 + (keycode - KC_PW_0);
+      }
+      return false;
+    case KC_PW_ENT:
+      if (record->event.pressed) {
+        pin=pin_input;
+        pin_input = 0;
+      }
+      return false;
+    case KC_PW_PRNT:
+      if (record->event.pressed) {
+        tap_int_value(pin);
       }
       return false;
     case KC_PW_X:
       if (record->event.pressed) {
-          if (pin_unlocked) {
-            send_string_with_delay("xHelloWorld!", 10);
-          }
-          else {
+        if (pin > 0) {
+            generate_password('x');
+        }
+        else {
             send_string_with_delay("xNoLuck!", 10);
-          }
-
+        }
       }
       return false;
     case KC_PW_C:
       if (record->event.pressed) {
-          if (pin_unlocked) {
-            send_string_with_delay("passwordX!!!", 10);
-          }
-          else {
-            send_string_with_delay("cNoLuck!", 10);
-          }
-
+        if (pin > 0) {
+            generate_password('c');
+        }
+        else {
+            send_string_with_delay("xNoLuck!", 10);
+        }
+      }
+      return false;
+    case KC_PW_K:
+      if (record->event.pressed) {
+        if (pin > 0) {
+            generate_password('k');
+        }
+        else {
+            send_string_with_delay("xNoLuck!", 10);
+        }
       }
       return false;
     }
