@@ -17,6 +17,9 @@ static bool default_key_map(effect_params_t* params) {
     if (i == g_led_config.matrix_co[1][17]) {
         rgb_matrix_set_color(i, RGB_GREEN);
     }
+    else if (i == g_led_config.matrix_co[5][17]) {
+        rgb_matrix_set_color(i, 255,0,255);
+    }
     else {
         rgb_matrix_set_color(i, RGB_BLUE);
     }
@@ -29,6 +32,9 @@ static bool et_us_key_map(effect_params_t* params) {
   for (uint8_t i = led_min; i < led_max; i++) {
     if (i == g_led_config.matrix_co[1][17]) {
         rgb_matrix_set_color(i, RGB_BLUE);
+    }
+    else if (i == g_led_config.matrix_co[5][17]) {
+        rgb_matrix_set_color(i, RGB_MAGENTA);
     }
     else {
         rgb_matrix_set_color(i, RGB_GREEN);

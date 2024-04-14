@@ -22,7 +22,9 @@ enum layers{
   MAC_FN,
   WIN_BASE,
   WIN_FN,
-  WIN_ET_US //Emulate UK layout in system where ET layout is default
+  WIN_ET_US, //Emulate UK layout in system where ET layout is default
+  M4_MY, //my personal autotype macros
+  M3_PW, //pw autotype macros
 };
 
 enum custom_keycodes {
@@ -45,7 +47,26 @@ enum custom_keycodes {
   KC_NUHS_ET_US,
   KC_SLSH_ET_US,
   KC_NUBS_ET_US,
-  KC_M1
+  KC_M1,
+  KC_MY_IK, //personal code
+  KC_MY_EM, //email
+  KC_MY_PH, //phone
+  KC_MY_ST, //My street address
+  KC_MY_ZIP, //my zip code
+  KC_PW_LOCK,
+  KC_MACRO3,
+  KC_PW_0,
+  KC_PW_1,
+  KC_PW_2,
+  KC_PW_3,
+  KC_PW_4,
+  KC_PW_5,
+  KC_PW_6,
+  KC_PW_7,
+  KC_PW_8,
+  KC_PW_9,
+  KC_PW_X,
+  KC_PW_C,
 };
 
 const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
@@ -70,8 +91,8 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
                         KC_GRV,   KC_1,     KC_2,     KC_3,     KC_4,     KC_5,     KC_6,     KC_7,     KC_8,     KC_9,     KC_0,     KC_MINS,  KC_EQL,     KC_BSPC,  KC_INS,   KC_HOME,  KC_PGUP,
         KC_M1,          KC_TAB,   KC_Q,     KC_W,     KC_E,     KC_R,     KC_T,     KC_Y,     KC_U,     KC_I,     KC_O,     KC_P,     KC_LBRC,  KC_RBRC,              KC_DEL,   KC_END,   KC_PGDN,
         _______,        KC_CAPS,  KC_A,     KC_S,     KC_D,     KC_F,     KC_G,     KC_H,     KC_J,     KC_K,     KC_L,     KC_SCLN,  KC_QUOT,  KC_NUHS,    KC_ENT,
-        _______,        KC_LSFT,  KC_NUBS,  KC_Z,     KC_X,     KC_C,     KC_V,     KC_B,     KC_N,     KC_M,     KC_COMM,  KC_DOT,   KC_SLSH,              KC_RSFT,            KC_UP,
-        _______,        KC_LCTL,  KC_LWIN,  KC_LALT,                                KC_SPC,                                 KC_RALT,  KC_RWIN,  MO(WIN_FN), KC_RCTL,  KC_LEFT,  KC_DOWN,  KC_RGHT),
+        MO(M3_PW),        KC_LSFT,  KC_NUBS,  KC_Z,     KC_X,     KC_C,     KC_V,     KC_B,     KC_N,     KC_M,     KC_COMM,  KC_DOT,   KC_SLSH,              KC_RSFT,            KC_UP,
+        MO(M4_MY),        KC_LCTL,  KC_LWIN,  KC_LALT,                                KC_SPC,                                 KC_RALT,  KC_RWIN,  MO(WIN_FN), KC_RCTL,  KC_LEFT,  KC_DOWN,  KC_RGHT),
 
     [WIN_FN] = LAYOUT_93_iso(
         RGB_TOG,  _______,            KC_BRID,  KC_BRIU,  KC_TASK,  KC_FILE,  RGB_VAD,  RGB_VAI,  KC_MPRV,  KC_MPLY,  KC_MNXT,  KC_MUTE,  KC_VOLD,  KC_VOLU,    _______,  _______,  RGB_TOG,
@@ -86,8 +107,24 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
                   KC_GRV_ET_US, KC_1,           KC_2_ET_US, KC_3,       KC_4_ET_US, KC_5,       KC_6_ET_US, KC_7_ET_US, KC_8_ET_US, KC_9_ET_US,     KC_0_ET_US,     KC_MINS_ET_US,  KC_EQL_ET_US,   KC_BSPC,  KC_INS,   KC_HOME,  KC_PGUP,
         KC_M1,    KC_TAB,       KC_Q,           KC_W,       KC_E,       KC_R,       KC_T,       KC_Y,       KC_U,       KC_I,       KC_O,           KC_P,           KC_LBRC_ET_US,  KC_RBRC_ET_US,            KC_DEL,   KC_END,   KC_PGDN,
         _______,  KC_CAPS,      KC_A,           KC_S,       KC_D,       KC_F,       KC_G,       KC_H,       KC_J,       KC_K,       KC_L,           KC_SCLN_ET_US,  KC_QUOT_ET_US,  KC_NUHS_ET_US,        KC_ENT,
-        _______,  KC_LSFT,      KC_NUBS_ET_US,  KC_Z,       KC_X,       KC_C,       KC_V,       KC_B,       KC_N,       KC_M,       KC_COMM_ET_US,  KC_DOT_ET_US,   KC_SLSH_ET_US,                        KC_RSFT,            KC_UP,
-        _______,  KC_LCTL,      KC_LWIN,        KC_LALT,                                KC_SPC,                                       KC_RALT,         KC_RWIN,        MO(WIN_FN),     KC_RCTL,  KC_LEFT,  KC_DOWN,  KC_RGHT),
+        MO(M3_PW),  KC_LSFT,      KC_NUBS_ET_US,  KC_Z,       KC_X,       KC_C,       KC_V,       KC_B,       KC_N,       KC_M,       KC_COMM_ET_US,  KC_DOT_ET_US,   KC_SLSH_ET_US,                        KC_RSFT,            KC_UP,
+        MO(M4_MY),  KC_LCTL,      KC_LWIN,        KC_LALT,                                KC_SPC,                                       KC_RALT,         KC_RWIN,        MO(WIN_FN),     KC_RCTL,  KC_LEFT,  KC_DOWN,  KC_RGHT),
+
+    [M4_MY] = LAYOUT_93_iso(
+        _______,  _______,            _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,    _______,  _______,  _______,
+                  _______,  KC_MY_ZIP,  _______,  KC_MY_IK,  _______,  KC_MY_PH,  _______,  _______,  _______,  _______,  _______,  _______,  _______,    _______,  _______,  _______,  _______,
+        _______,  _______,  _______,  _______,  _______,  _______,  KC_MY_EM,  _______,  _______,  _______,  _______,  _______,  _______,  _______,              _______,  _______,  _______,
+        _______,  _______,  _______, _______,  _______,  _______,  _______,  _______,  _______,  _______,  KC_MY_ST,  _______,  _______,  _______,    _______,
+        _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,              _______,            _______,
+        _______,  _______,  _______,  _______,                                _______,                                _______,  _______,  _______,    _______,  _______,  _______,  _______),
+
+    [M3_PW] = LAYOUT_93_iso(
+        _______,  KC_PW_LOCK,          KC_F1,    KC_F2,    KC_F3,    KC_F4,    KC_F5,    KC_F6,    KC_F7,    KC_F8,    KC_F9,    _______,   _______,     _______,   _______,  _______, _______,
+                  _______,   KC_PW_1,  KC_PW_2,  KC_PW_3,  KC_PW_4,  KC_PW_5,  KC_PW_6,  KC_PW_7,  KC_PW_8,  KC_PW_9,  KC_PW_0,     _______,  _______, _______,    _______,   _______,  _______,
+        _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,              _______,  _______,  _______,
+        _______,  _______,  _______, _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,    _______,
+        _______,  _______,  _______,  KC_Z,     KC_PW_X,  KC_PW_C,     KC_V,     KC_B,     KC_N,     KC_M,     _______,  _______,   _______,              _______,            _______,
+        _______,  _______,  _______,  _______,                                _______,                                _______,  _______,  _______,    _______,  _______,  _______,  _______),
 };
 
 bool is_shift_pressed(void) {
@@ -129,7 +166,14 @@ void tap_wo_modifier(uint16_t keycode) {
     set_mods(mods);
 }
 
+bool pin_unlocked = false;
+int pin_index = 0;
+const uint16_t correct_pin[] = {KC_PW_1, KC_PW_2, KC_PW_3, KC_PW_4};  // Your PIN
+#define PIN_LENGTH 4
+
 bool process_record_user(uint16_t keycode, keyrecord_t *record) {
+  static bool win_key_pressed = false;
+
   switch (keycode) {
     case KC_M1:
       if (record->event.pressed) {
@@ -205,39 +249,12 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
         }
       }
       return false;
-    case KC_9_ET_US:
+    case KC_2_ET_US:
       if (record->event.pressed) {
         if (is_shift_pressed()) {
-            tap_with_modifier(KC_8, KC_LSFT);
+            tap_with_modifier(KC_2, KC_RALT);
         } else {
-            tap_code(KC_9);
-        }
-      }
-      return false;
-    case KC_8_ET_US:
-      if (record->event.pressed) {
-        if (is_shift_pressed()) {
-            tap_with_modifier(KC_NUHS, KC_LSFT);
-        } else {
-            tap_code(KC_8);
-        }
-      }
-      return false;
-    case KC_7_ET_US:
-      if (record->event.pressed) {
-        if (is_shift_pressed()) {
-            tap_with_modifier(KC_6, KC_LSFT);
-        } else {
-            tap_code(KC_7);
-        }
-      }
-      return false;
-    case KC_6_ET_US:
-      if (record->event.pressed) {
-        if (is_shift_pressed()) {
-            tap_with_modifier(KC_QUOT, KC_RALT);
-        } else {
-            tap_code(KC_6);
+            tap_code(KC_2);
         }
       }
       return false;
@@ -250,12 +267,39 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
         }
       }
       return false;
-    case KC_2_ET_US:
+    case KC_6_ET_US:
       if (record->event.pressed) {
         if (is_shift_pressed()) {
-            tap_with_modifier(KC_2, KC_RALT);
+            tap_with_modifier(KC_QUOT, KC_RALT);
         } else {
-            tap_code(KC_2);
+            tap_code(KC_6);
+        }
+      }
+      return false;
+    case KC_7_ET_US:
+      if (record->event.pressed) {
+        if (is_shift_pressed()) {
+            tap_with_modifier(KC_6, KC_LSFT);
+        } else {
+            tap_code(KC_7);
+        }
+      }
+      return false;
+    case KC_8_ET_US:
+      if (record->event.pressed) {
+        if (is_shift_pressed()) {
+            tap_with_modifier(KC_NUHS, KC_LSFT);
+        } else {
+            tap_code(KC_8);
+        }
+      }
+      return false;
+    case KC_9_ET_US:
+      if (record->event.pressed) {
+        if (is_shift_pressed()) {
+            tap_with_modifier(KC_8, KC_LSFT);
+        } else {
+            tap_code(KC_9);
         }
       }
       return false;
@@ -313,8 +357,95 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
         }
       }
       return false;
+    case KC_MY_EM:
+      if (record->event.pressed) {
+            send_string_with_delay("mymail", 5);
+            tap_with_modifier(KC_2, KC_RALT);
+            send_string_with_delay("gmail.com", 5);
       }
+      return false;
+    case KC_MY_PH:
+      if (record->event.pressed) {
+            send_string_with_delay("myphone", 5);
+      }
+      return false;
+    case KC_MY_IK:
+      if (record->event.pressed) {
+            send_string_with_delay("mypersonalcode", 5);
+      }
+      return false;
+    case KC_MY_ST:
+      if (record->event.pressed) {
+            send_string_with_delay("My streetaddress", 5);
+      }
+      return false;
+    case KC_MY_ZIP:
+      if (record->event.pressed) {
+            send_string_with_delay("myzip", 5);
+      }
+      return false;
+    case KC_LWIN:
+    case KC_RWIN:
+      if (record->event.pressed) {
+          win_key_pressed = true;
+      } else {
+          win_key_pressed = false;
+      }
+      return true;
+    case KC_L:
+      if (record->event.pressed && win_key_pressed) {
+          // Lock the keyboard or switch layers when Win+L is pressed
+          pin_unlocked = false;  // Reset the unlock state
+      }
+      return true;
+    case KC_PW_0:
+    case KC_PW_1:
+    case KC_PW_2:
+    case KC_PW_3:
+    case KC_PW_4:
+    case KC_PW_5:
+    case KC_PW_6:
+    case KC_PW_7:
+    case KC_PW_8:
+    case KC_PW_9:
+      if (!pin_unlocked && record->event.pressed) {
+        // Check if the pressed key is part of the PIN sequence
+        if (keycode == correct_pin[pin_index]) {
+            pin_index++;
+        } else {
+            pin_index = 0;  // Reset PIN index if wrong key is pressed
+        }
+        if (pin_index == PIN_LENGTH) {
+            pin_unlocked = true;
+        } else {
+            pin_unlocked = false;  // Reset unlock if PIN is incorrect
+        }
+        return false;  // Block all other key processing when entering PIN
+      }
+      return false;
+    case KC_PW_X:
+      if (record->event.pressed) {
+          if (pin_unlocked) {
+            send_string_with_delay("xHelloWorld!", 10);
+          }
+          else {
+            send_string_with_delay("xNoLuck!", 10);
+          }
 
+      }
+      return false;
+    case KC_PW_C:
+      if (record->event.pressed) {
+          if (pin_unlocked) {
+            send_string_with_delay("passwordX!!!", 10);
+          }
+          else {
+            send_string_with_delay("cNoLuck!", 10);
+          }
+
+      }
+      return false;
+    }
   return true; // Process all other keycodes normally
 }
 
@@ -324,11 +455,8 @@ void keyboard_post_init_user(void) {
 
 bool rgb_matrix_indicators_advanced_user(uint8_t led_min, uint8_t led_max) {
     if (host_keyboard_led_state().caps_lock) {
-        for (uint8_t i = led_min; i < led_max; i++) {
-            if (g_led_config.flags[i] & LED_FLAG_KEYLIGHT) {
-                rgb_matrix_set_color(i, RGB_RED);
-            }
-        }
+        //set caps lock key as red
+        rgb_matrix_set_color(g_led_config.matrix_co[3][0], 255, 0, 0);
     }
     return false;
 }
@@ -341,5 +469,7 @@ const uint16_t PROGMEM encoder_map[][NUM_ENCODERS][2] = {
     [WIN_BASE] = { ENCODER_CCW_CW(KC_VOLD, KC_VOLU)},
     [WIN_FN]   = { ENCODER_CCW_CW(RGB_VAD, RGB_VAI)},
     [WIN_ET_US] = { ENCODER_CCW_CW(KC_VOLD, KC_VOLU) },
+    [M4_MY] = { ENCODER_CCW_CW(KC_VOLD, KC_VOLU) },
+    [M3_PW] = { ENCODER_CCW_CW(KC_VOLD, KC_VOLU) },
 };
 #endif // ENCODER_MAP_ENABLE
