@@ -19,9 +19,9 @@
 
 static uint32_t pin_input = 0; // for processing ongoing input
 static uint32_t pin = 0;  // store pin after enter key
-const char *password_salt = "MyPwSalt";
+const char *password_salt = "Kynnivare5";
 const char ALLOWED_PW_CHARS[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!#.,";
-const char *mandatoryPrefix = "!5xY";
+const char *mandatoryPrefix = "!8zY";
 
 
 // clang-format off
@@ -74,9 +74,32 @@ enum custom_keycodes {
   KC_PW_8,
   KC_PW_9,
   KC_PW_ENT,
-  KC_PW_X,
+  KC_PW_A,
+  KC_PW_B,
   KC_PW_C,
+  KC_PW_D,
+  KC_PW_E,
+  KC_PW_F,
+  KC_PW_G,
+  KC_PW_H,
+  KC_PW_I,
+  KC_PW_J,
   KC_PW_K,
+  KC_PW_L,
+  KC_PW_M,
+  KC_PW_N,
+  KC_PW_O,
+  KC_PW_P,
+  KC_PW_Q,
+  KC_PW_R,
+  KC_PW_S,
+  KC_PW_T,
+  KC_PW_U,
+  KC_PW_V,
+  KC_PW_W,
+  KC_PW_X,
+  KC_PW_Y,
+  KC_PW_Z,
   KC_PW_PRNT
 };
 
@@ -132,11 +155,94 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
     [M3_PW] = LAYOUT_93_iso(
         _______,  KC_PW_LOCK,          _______,    _______,    _______,    _______,    _______,    _______,    _______,    _______,    _______,    _______,   _______,     _______,   _______,  _______, _______,
                   KC_PW_PRNT,   KC_PW_1,  KC_PW_2,  KC_PW_3,  KC_PW_4,  KC_PW_5,  KC_PW_6,  KC_PW_7,  KC_PW_8,  KC_PW_9,  KC_PW_0,     _______,  _______, _______,    _______,   _______,  _______,
-        _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,              _______,  _______,  _______,
-        _______,  _______,  _______, _______,  _______,  _______,  _______,  _______,  _______,   KC_PW_K,  _______,  _______,  _______,  _______,    KC_PW_ENT,
-        _______,  _______,  _______,  KC_Z,     KC_PW_X,  KC_PW_C,     KC_V,     KC_B,     KC_N,     KC_M,     _______,  _______,   _______,              _______,            _______,
+        _______,          _______,   KC_PW_Q,     KC_PW_W,     KC_PW_E,     KC_PW_R,     KC_PW_T,     KC_PW_Y,     KC_PW_U,     KC_PW_I,     KC_PW_O,     KC_PW_P,     _______,  _______,              _______,   _______,   _______,
+        _______,        _______,  KC_PW_A,     KC_PW_S,     KC_PW_D,     KC_PW_F,     KC_PW_G,     KC_PW_H,     KC_PW_J,     KC_PW_K,     KC_PW_L,     _______,  _______,  _______,    KC_PW_ENT,
+        _______,        _______,  _______,  KC_PW_Z,     KC_PW_X,     KC_PW_C,     KC_PW_V,     KC_PW_B,     KC_PW_N,     KC_PW_M,     _______,  _______,   _______,              _______,            _______,
         _______,  _______,  _______,  _______,                                _______,                                _______,  _______,  _______,    _______,  _______,  _______,  _______),
 };
+
+void hash_function(const char* input, uint8_t* output) {
+    //uint8_t hash[32];  // Buffer for the raw hash output
+    uint32_t state[8]; // State for the SHA-256 computation
+    //char buf[3];       // Temporary buffer for formatting each byte
+
+    // Initialize the SHA-256 state
+    sha256_init(state);
+
+    // Update the hash with the input data
+    sha256_update(state, (const uint8_t *)input, strlen(input));
+
+    // Finalize the hash
+    //sha256_final(hash, state);
+    sha256_final(output, state);
+
+    // Convert hash bytes to a hexadecimal string
+    //output[0] = '\0';  // Start with an empty string
+    //for (int i = 0; i < 32; i++) {
+    //    snprintf(buf, sizeof(buf), "%02x", hash[i]);
+    //    strcat(output, buf);  // Append the hex string
+    //}
+}
+
+void type_password(uint8_t* hash) {
+    int char_count = 0; // Initialize a counter for the characters
+    size_t length = strlen(ALLOWED_PW_CHARS);
+    while (char_count < 12) { // Only loop for the first 12 characters
+        uint8_t i = hash[char_count] % length;
+        char ascii_code = pgm_read_byte(&ALLOWED_PW_CHARS[i]);
+        if (!ascii_code) break; // Break if the end of the string is reached prematurely
+
+        wait_ms(10);
+        send_char(ascii_code);
+        ++char_count; // Increment the character counter
+
+        // interval
+        {
+            uint8_t ms = 10;
+            while (ms--)
+                wait_ms(1);
+        }
+    }
+    send_string_with_delay(mandatoryPrefix, 30);
+}
+
+
+void generate_password(char pressed_key) {
+    long pin = 123456; // Assuming you have a pin number. Make sure to define or fetch it appropriately.
+    char pin_str[12];  // Buffer for the PIN string
+    snprintf(pin_str, sizeof(pin_str), "%ld", pin);  // Convert PIN number to string
+
+    // Allocate buffer for the salted input (PIN string + salt + 1 for the pressed key)
+    size_t input_size = strlen(pin_str) + strlen(password_salt) + 2; // +2 for the pressed key and the null terminator
+    char salted_input[input_size];
+    memset(salted_input, 0, input_size);  // Clear the buffer
+
+    strncpy(salted_input, pin_str, sizeof(salted_input) - 1);  // Start with the PIN string
+    strncat(salted_input, password_salt, sizeof(salted_input) - strlen(salted_input) - 1);  // Safely append the salt
+
+    // Append the pressed key to the salted input, ensuring there is room for the null terminator
+    size_t current_length = strlen(salted_input);
+    if (current_length < sizeof(salted_input) - 1) {
+        salted_input[current_length] = pressed_key;
+        salted_input[current_length + 1] = '\0'; // Ensure null termination
+    }
+
+    // Buffer to hold the hashed output
+    uint8_t hash[32];  // Adjust size based on the hash function output
+    hash_function(salted_input, hash);
+
+    // Type out the hashed password
+    type_password(hash);
+}
+
+void PWX(char pressed_key) {
+    if (pin > 0) {
+        generate_password(pressed_key);
+    }
+    else {
+        send_string_with_delay("NoLuck!", 10);
+    }
+}
 
 bool is_shift_pressed(void) {
     return get_mods() & (MOD_BIT(KC_LSFT) | MOD_BIT(KC_RSFT));
@@ -238,79 +344,6 @@ void tap_char(char c) {
     } else {
         tap_with_modifier(KC_1, KC_LSFT); //adds !
     }
-}
-
-void hash_function(const char* input, uint8_t* output) {
-    //uint8_t hash[32];  // Buffer for the raw hash output
-    uint32_t state[8]; // State for the SHA-256 computation
-    //char buf[3];       // Temporary buffer for formatting each byte
-
-    // Initialize the SHA-256 state
-    sha256_init(state);
-
-    // Update the hash with the input data
-    sha256_update(state, (const uint8_t *)input, strlen(input));
-
-    // Finalize the hash
-    //sha256_final(hash, state);
-    sha256_final(output, state);
-
-    // Convert hash bytes to a hexadecimal string
-    //output[0] = '\0';  // Start with an empty string
-    //for (int i = 0; i < 32; i++) {
-    //    snprintf(buf, sizeof(buf), "%02x", hash[i]);
-    //    strcat(output, buf);  // Append the hex string
-    //}
-}
-
-void type_password(uint8_t* hash) {
-    int char_count = 0; // Initialize a counter for the characters
-    size_t length = strlen(ALLOWED_PW_CHARS);
-    while (char_count < 12) { // Only loop for the first 12 characters
-        uint8_t i = hash[char_count] % length;
-        char ascii_code = pgm_read_byte(&ALLOWED_PW_CHARS[i]);
-        if (!ascii_code) break; // Break if the end of the string is reached prematurely
-
-        send_char(ascii_code);
-        ++char_count; // Increment the character counter
-
-        // interval
-        {
-            uint8_t ms = 10;
-            while (ms--)
-                wait_ms(1);
-        }
-    }
-    send_string_with_delay(mandatoryPrefix, 10);
-}
-
-
-void generate_password(char pressed_key) {
-    long pin = 123456; // Assuming you have a pin number. Make sure to define or fetch it appropriately.
-    char pin_str[12];  // Buffer for the PIN string
-    snprintf(pin_str, sizeof(pin_str), "%ld", pin);  // Convert PIN number to string
-
-    // Allocate buffer for the salted input (PIN string + salt + 1 for the pressed key)
-    size_t input_size = strlen(pin_str) + strlen(password_salt) + 2; // +2 for the pressed key and the null terminator
-    char salted_input[input_size];
-    memset(salted_input, 0, input_size);  // Clear the buffer
-
-    strncpy(salted_input, pin_str, sizeof(salted_input) - 1);  // Start with the PIN string
-    strncat(salted_input, password_salt, sizeof(salted_input) - strlen(salted_input) - 1);  // Safely append the salt
-
-    // Append the pressed key to the salted input, ensuring there is room for the null terminator
-    size_t current_length = strlen(salted_input);
-    if (current_length < sizeof(salted_input) - 1) {
-        salted_input[current_length] = pressed_key;
-        salted_input[current_length + 1] = '\0'; // Ensure null termination
-    }
-
-    // Buffer to hold the hashed output
-    uint8_t hash[32];  // Adjust size based on the hash function output
-    hash_function(salted_input, hash);
-
-    // Type out the hashed password
-    type_password(hash);
 }
 
 bool process_record_user(uint16_t keycode, keyrecord_t *record) {
@@ -557,34 +590,134 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
         tap_int_value(pin);
       }
       return false;
-    case KC_PW_X:
+    case KC_PW_A:
       if (record->event.pressed) {
-        if (pin > 0) {
-            generate_password('x');
-        }
-        else {
-            send_string_with_delay("xNoLuck!", 10);
-        }
+        PWX('a');
+      }
+      return false;
+    case KC_PW_B:
+      if (record->event.pressed) {
+        PWX('b');
       }
       return false;
     case KC_PW_C:
       if (record->event.pressed) {
-        if (pin > 0) {
-            generate_password('c');
-        }
-        else {
-            send_string_with_delay("xNoLuck!", 10);
-        }
+        PWX('c');
+      }
+      return false;
+    case KC_PW_D:
+      if (record->event.pressed) {
+        PWX('d');
+      }
+      return false;
+    case KC_PW_E:
+      if (record->event.pressed) {
+        PWX('e');
+      }
+      return false;
+    case KC_PW_F:
+      if (record->event.pressed) {
+        PWX('f');
+      }
+      return false;
+    case KC_PW_G:
+      if (record->event.pressed) {
+        PWX('g');
+      }
+      return false;
+    case KC_PW_H:
+      if (record->event.pressed) {
+        PWX('h');
+      }
+      return false;
+    case KC_PW_I:
+      if (record->event.pressed) {
+        PWX('i');
+      }
+      return false;
+    case KC_PW_J:
+      if (record->event.pressed) {
+        PWX('j');
       }
       return false;
     case KC_PW_K:
       if (record->event.pressed) {
-        if (pin > 0) {
-            generate_password('k');
-        }
-        else {
-            send_string_with_delay("xNoLuck!", 10);
-        }
+        PWX('k');
+      }
+      return false;
+    case KC_PW_L:
+      if (record->event.pressed) {
+        PWX('l');
+      }
+      return false;
+    case KC_PW_M:
+      if (record->event.pressed) {
+        PWX('m');
+      }
+      return false;
+    case KC_PW_N:
+      if (record->event.pressed) {
+        PWX('n');
+      }
+      return false;
+    case KC_PW_O:
+      if (record->event.pressed) {
+        PWX('o');
+      }
+      return false;
+    case KC_PW_P:
+      if (record->event.pressed) {
+        PWX('p');
+      }
+      return false;
+    case KC_PW_Q:
+      if (record->event.pressed) {
+        PWX('q');
+      }
+      return false;
+    case KC_PW_R:
+      if (record->event.pressed) {
+        PWX('r');
+      }
+      return false;
+    case KC_PW_S:
+      if (record->event.pressed) {
+        PWX('s');
+      }
+      return false;
+    case KC_PW_T:
+      if (record->event.pressed) {
+        PWX('t');
+      }
+      return false;
+    case KC_PW_U:
+      if (record->event.pressed) {
+        PWX('u');
+      }
+      return false;
+    case KC_PW_V:
+      if (record->event.pressed) {
+        PWX('v');
+      }
+      return false;
+    case KC_PW_W:
+      if (record->event.pressed) {
+        PWX('w');
+      }
+      return false;
+    case KC_PW_X:
+      if (record->event.pressed) {
+        PWX('x');
+      }
+      return false;
+    case KC_PW_Y:
+      if (record->event.pressed) {
+        PWX('y');
+      }
+      return false;
+    case KC_PW_Z:
+      if (record->event.pressed) {
+        PWX('z');
       }
       return false;
     }

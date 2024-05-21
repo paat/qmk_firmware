@@ -208,9 +208,11 @@ void send_char(char ascii_code) {
 
     if (is_shifted) {
         register_code(KC_LEFT_SHIFT);
+        wait_ms(10);
     }
     if (is_altgred) {
         register_code(KC_RIGHT_ALT);
+        wait_ms(10);
     }
     tap_code(keycode);
     if (is_altgred) {
