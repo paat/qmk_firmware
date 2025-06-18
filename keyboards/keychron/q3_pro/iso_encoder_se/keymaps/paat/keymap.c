@@ -733,6 +733,12 @@ bool rgb_matrix_indicators_advanced_user(uint8_t led_min, uint8_t led_max) {
         //set caps lock key as red
         rgb_matrix_set_color(g_led_config.matrix_co[3][0], 255, 0, 0);
     }
+    if (pin > 0) {
+        rgb_matrix_set_color(g_led_config.matrix_co[4][17], RGB_YELLOW);
+    }
+    else {
+        rgb_matrix_set_color(g_led_config.matrix_co[4][17], RGB_RED);
+    }
     return false;
 }
 
