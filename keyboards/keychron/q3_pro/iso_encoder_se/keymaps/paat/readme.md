@@ -31,3 +31,19 @@ def password(pin, salt, letter, suffix="!8zY", iterations=4096):
     digest = hmac.new(master, letter.encode(), hashlib.sha256).digest()
     return "".join(CHARS[b % len(CHARS)] for b in digest[:12]) + suffix
 ```
+
+## RGB sync: extend the lighting to other devices
+The keyboard streams what its LEDs show to the PC, and `host/rgb_sync.py` paints it onto every device [OpenRGB](https://openrgb.org) can drive (mouse, mouse mat, motherboard, GPU...). Whatever the keyboard shows carries over: `RGB_MOD` effects, the layout colours (M1), brightness, on/off.
+
+- Works in cable mode only; on Bluetooth the other devices keep their last colours.
+- The board is sampled as 9 colours, left to right (`rgb_sync.c`). A device zone with several LEDs gets them spread across; a single LED gets the middle of the board.
+- The password-layer indicator key is left out, so its PIN-dependent colour never reaches the PC.
+
+Setup on Linux, after flashing: run `host/install.sh [options]`. It installs a udev rule for the keyboard's raw HID interface (sudo) and two systemd user services: an OpenRGB server and `rgb_sync.py`. `host/install.sh --remove` undoes it.
+
+To try the PC side without the keyboard: `openrgb --server &` then `host/rgb_sync.py --demo`. Options for `rgb_sync.py`, given to `install.sh`:
+- `--strip-leds N`: drive N LEDs on addressable (ARGB) headers whose strip length is not set in OpenRGB. Needed for anything plugged into a motherboard ARGB header, e.g. a water block: `host/install.sh --strip-leds 30`.
+- `--skip NAME`: leave devices whose name contains NAME alone.
+- `--brightness 0.6`: dim the other devices.
+
+An ASUS graphics card whose stock cooler was replaced still shows up in OpenRGB, but its lighting chip drives nothing.

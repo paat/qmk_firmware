@@ -16,6 +16,7 @@
 
 #include QMK_KEYBOARD_H
 #include "pwkdf.h"
+#include "rgb_sync.h"
 #include "sha256.h" // old non-standard hash, kept only for legacy passwords
 
 // Private values live in secrets.h next to this file (gitignored, see
@@ -293,6 +294,7 @@ layer_state_t layer_state_set_user(layer_state_t state) {
 
 void housekeeping_task_user(void) {
     pw_autolock_task();
+    rgb_sync_task();
 }
 
 // The USB host went to sleep.
@@ -678,17 +680,17 @@ bool rgb_matrix_indicators_advanced_user(uint8_t led_min, uint8_t led_max) {
     // Password layer state: white = PIN digits pending, red = locked,
     // any other colour = unlocked (the colour depends on the PIN).
     if (pw_pin_len > 0) {
-        rgb_matrix_set_color(g_led_config.matrix_co[4][17], RGB_WHITE);
+        rgb_matrix_set_color(PW_INDICATOR_LED, RGB_WHITE);
     } else if (pw_unlocked) {
 #ifdef PW_FINGERPRINT_DISABLE
-        rgb_matrix_set_color(g_led_config.matrix_co[4][17], RGB_YELLOW);
+        rgb_matrix_set_color(PW_INDICATOR_LED, RGB_YELLOW);
 #else
         // hue 30..225: yellow through green and blue to purple, never red
         RGB rgb = hsv_to_rgb((HSV){30 + (uint8_t)((uint16_t)pw_fingerprint * 195 / 255), 255, 255});
-        rgb_matrix_set_color(g_led_config.matrix_co[4][17], rgb.r, rgb.g, rgb.b);
+        rgb_matrix_set_color(PW_INDICATOR_LED, rgb.r, rgb.g, rgb.b);
 #endif
     } else {
-        rgb_matrix_set_color(g_led_config.matrix_co[4][17], RGB_RED);
+        rgb_matrix_set_color(PW_INDICATOR_LED, RGB_RED);
     }
     return false;
 }

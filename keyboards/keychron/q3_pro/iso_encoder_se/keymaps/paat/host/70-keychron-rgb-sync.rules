@@ -1,0 +1,4 @@
+# Lets the logged-in user open the Keychron Q3 Pro's raw HID interface, which
+# rgb_sync.py reads. Only that interface: not the one that carries keystrokes.
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="3434", ATTRS{idProduct}=="0631", ENV{.keychron_q3_pro}="1"
+ENV{.keychron_q3_pro}=="1", ATTRS{bInterfaceNumber}=="01", TAG+="uaccess"
