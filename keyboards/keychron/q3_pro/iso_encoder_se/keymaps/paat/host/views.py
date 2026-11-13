@@ -22,7 +22,7 @@ RETRY_SECONDS = 3
 
 # Brightness (0..1) per zone that a running generator wants the other devices
 # to show the keyboard's colours at, instead of the keyboard's own brightness.
-# The music view sets it so that they pulse with the beat. None = as on the
+# The music view sets it so that they pulse with the bass beat. None = as on the
 # keyboard.
 modulation = None
 
@@ -34,15 +34,29 @@ modulation = None
 accents = None
 
 
+_remembered = []  # per zone: the last colour the keyboard showed there, at full brightness
+
+
 def modulate(frame):
-    """Applies `modulation` to a frame of (r, g, b) zones from the keyboard."""
+    """Applies `modulation` to a frame of (r, g, b) zones from the keyboard.
+
+    A zone the keyboard shows dark keeps the colour it had last, so that the
+    devices can light up where the keyboard does not (a beat without treble).
+    """
+    global _remembered
     levels = modulation
     if levels is None or len(levels) != len(frame):
+        _remembered = []
         return frame
+    if len(_remembered) != len(frame):
+        _remembered = [None] * len(frame)
     out = []
-    for color, level in zip(frame, levels):
+    for zone, (color, level) in enumerate(zip(frame, levels)):
         peak = max(color)
-        out.append(tuple(round(v * 255 / peak * level) for v in color) if peak >= 8 else color)
+        if peak >= 8:
+            _remembered[zone] = tuple(v * 255 / peak for v in color)
+        full = _remembered[zone]
+        out.append(tuple(round(v * level) for v in full) if full else color)
     return out
 
 
