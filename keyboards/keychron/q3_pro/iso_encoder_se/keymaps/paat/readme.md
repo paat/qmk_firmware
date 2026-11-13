@@ -36,7 +36,7 @@ def password(pin, salt, letter, suffix="!8zY", iterations=4096):
 The RGB key steps through five views; the board's stock animations are left out of the firmware (`config.h`). Brightness works in all of them: hold the RGB key and turn the knob (a tap of the RGB key alone steps to the next view), or Fn + turn.
 
 1. **Static**: the layout colours (blue = default, green = US-on-ET layer, toggled with M1).
-2. **Music**: spectrum of what the PC plays, bass at the left, bars growing from the bottom row. The other RGB devices flash on the bass beat only. Fn+E/D shift the hue.
+2. **Music**: spectrum of what the PC plays, bass at the left, bars growing from the bottom row. The other RGB devices flash on the beat only, locked to the tempo of the bass; without a steady tempo they do not flash. Fn+E/D shift the hue.
 3. **System**: three meters, CPU load, memory in use, GPU load, green when low and red when high.
 4. **Coding**: what the coding agents do. Left half Claude, right half Codex: a running pulse while working, blinking yellow when one waits for you, green for a few minutes when one has finished, dim otherwise.
 5. **Screen**: the colours along the lower part of the screen.
