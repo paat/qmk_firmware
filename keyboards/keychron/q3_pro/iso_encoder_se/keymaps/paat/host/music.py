@@ -30,6 +30,7 @@ TILT_DB_PER_OCTAVE = 3   # music has less energy higher up; lift it to match
 BASS_HZ = 40, 150        # where the beat is looked for
 BASS_WINDOW = 2048       # samples: a longer look, or a steady bass note flickers
 BASS_NEAR_DB = 12        # bass this far below the loudest band is no beat
+BASS_HIT_DB = 2          # the bass rising less than this in one update is no hit
 BEAT_QUIET_DB = -24      # the loudest band counts as at least this loud
 LOUDEST_FALL_DB = 0.02   # per update: how fast "the loudest band" forgets
 DEVICE_FLOOR = 0.1       # brightness of the other devices between beats
@@ -200,7 +201,8 @@ class Analyser:
         near = bass > self.loudest - BASS_NEAR_DB
         before = bass if self.bass_before is None else self.bass_before
         self.bass_before = bass
-        if self.tempo.feed(max(bass - before, 0) if near else 0):
+        rise = bass - before
+        if self.tempo.feed(rise if near and rise >= BASS_HIT_DB else 0):
             self.beat = 1.0
         else:
             beat = self.tempo.period or UPDATES_PER_SECOND / 2

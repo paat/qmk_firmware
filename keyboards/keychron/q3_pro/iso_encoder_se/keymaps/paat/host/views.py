@@ -42,6 +42,8 @@ def modulate(frame):
 
     A zone the keyboard shows dark keeps the colour it had last, so that the
     devices can light up where the keyboard does not (a beat without treble).
+    A keyboard that is dark all over stays dark: its lighting is turned down
+    to nothing, or nothing is playing.
     """
     global _remembered
     levels = modulation
@@ -50,6 +52,8 @@ def modulate(frame):
         return frame
     if len(_remembered) != len(frame):
         _remembered = [None] * len(frame)
+    if max(max(color) for color in frame) < 8:
+        return frame
     out = []
     for zone, (color, level) in enumerate(zip(frame, levels)):
         peak = max(color)
