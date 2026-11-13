@@ -15,10 +15,8 @@
  */
 
 #include QMK_KEYBOARD_H
-#include "sha256.h"
-
-static uint32_t pin_input = 0; // for processing ongoing input
-static uint32_t pin = 0;  // store pin after enter key
+#include "pwkdf.h"
+#include "sha256.h" // old non-standard hash, kept only for legacy passwords
 
 // Private values live in secrets.h next to this file (gitignored, see
 // secrets.h.example). Without it the published defaults below are used.
@@ -35,6 +33,31 @@ static uint32_t pin = 0;  // store pin after enter key
 const char *password_salt = PASSWORD_SALT;
 const char ALLOWED_PW_CHARS[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!#.,";
 const char *mandatoryPrefix = PASSWORD_SUFFIX;
+
+#ifndef PW_KDF_ITERATIONS
+#    define PW_KDF_ITERATIONS 4096 // PBKDF2 rounds, run once per unlock
+#endif
+#ifndef PW_AUTOLOCK_MS
+#    define PW_AUTOLOCK_MS (5UL * 60 * 1000) // lock after this long without a key press
+#endif
+#define PW_PIN_MAX_DIGITS 16 // further digits are ignored
+#define PW_LENGTH 12         // generated characters before the suffix
+
+// Shift + letter types the password the pre-hardening firmware produced, so
+// accounts can be rotated. Those passwords are derivable from the public repo:
+// define PW_LEGACY_DISABLE in secrets.h once rotation is done.
+#ifndef PW_LEGACY_DISABLE
+#    define PW_LEGACY_PIN "123456"
+#    define PW_LEGACY_SALT "Kynnivare5"
+#    define PW_LEGACY_SUFFIX "!8zY"
+#endif
+
+static char     pw_pin_buf[PW_PIN_MAX_DIGITS]; // digits typed so far; never sent to the host
+static uint8_t  pw_pin_len       = 0;
+static uint8_t  pw_master[PW_HASH_LEN];        // PBKDF2(PIN, salt); meaningful only while unlocked
+static bool     pw_unlocked      = false;
+static uint32_t pw_last_activity = 0;          // time of the last key press, for the idle auto-lock
+static uint32_t pw_last_tick     = 0;          // last timer value seen, to notice the timer restarting
 
 
 // clang-format off
@@ -112,8 +135,7 @@ enum custom_keycodes {
   KC_PW_W,
   KC_PW_X,
   KC_PW_Y,
-  KC_PW_Z,
-  KC_PW_PRNT
+  KC_PW_Z
 };
 
 const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
@@ -167,93 +189,106 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
 
     [M3_PW] = LAYOUT_93_iso(
         _______,  KC_PW_LOCK,          _______,    _______,    _______,    _______,    _______,    _______,    _______,    _______,    _______,    _______,   _______,     _______,   _______,  _______, _______,
-                  KC_PW_PRNT,   KC_PW_1,  KC_PW_2,  KC_PW_3,  KC_PW_4,  KC_PW_5,  KC_PW_6,  KC_PW_7,  KC_PW_8,  KC_PW_9,  KC_PW_0,     _______,  _______, _______,    _______,   _______,  _______,
+                  _______,      KC_PW_1,  KC_PW_2,  KC_PW_3,  KC_PW_4,  KC_PW_5,  KC_PW_6,  KC_PW_7,  KC_PW_8,  KC_PW_9,  KC_PW_0,     _______,  _______, _______,    _______,   _______,  _______,
         _______,          _______,   KC_PW_Q,     KC_PW_W,     KC_PW_E,     KC_PW_R,     KC_PW_T,     KC_PW_Y,     KC_PW_U,     KC_PW_I,     KC_PW_O,     KC_PW_P,     _______,  _______,              _______,   _______,   _______,
         _______,        _______,  KC_PW_A,     KC_PW_S,     KC_PW_D,     KC_PW_F,     KC_PW_G,     KC_PW_H,     KC_PW_J,     KC_PW_K,     KC_PW_L,     _______,  _______,  _______,    KC_PW_ENT,
         _______,        _______,  _______,  KC_PW_Z,     KC_PW_X,     KC_PW_C,     KC_PW_V,     KC_PW_B,     KC_PW_N,     KC_PW_M,     _______,  _______,   _______,              _______,            _______,
         _______,  _______,  _______,  _______,                                _______,                                _______,  _______,  _______,    _______,  _______,  _______,  _______),
 };
 
-void hash_function(const char* input, uint8_t* output) {
-    //uint8_t hash[32];  // Buffer for the raw hash output
-    uint32_t state[8]; // State for the SHA-256 computation
-    //char buf[3];       // Temporary buffer for formatting each byte
-
-    // Initialize the SHA-256 state
-    sha256_init(state);
-
-    // Update the hash with the input data
-    sha256_update(state, (const uint8_t *)input, strlen(input));
-
-    // Finalize the hash
-    //sha256_final(hash, state);
-    sha256_final(output, state);
-
-    // Convert hash bytes to a hexadecimal string
-    //output[0] = '\0';  // Start with an empty string
-    //for (int i = 0; i < 32; i++) {
-    //    snprintf(buf, sizeof(buf), "%02x", hash[i]);
-    //    strcat(output, buf);  // Append the hex string
-    //}
+static void pw_lock(void) {
+    pw_wipe(pw_master, sizeof(pw_master));
+    pw_wipe(pw_pin_buf, sizeof(pw_pin_buf));
+    pw_pin_len  = 0;
+    pw_unlocked = false;
 }
 
-void type_password(uint8_t* hash) {
-    int char_count = 0; // Initialize a counter for the characters
+// Stretch the entered PIN into the master key. Blocks while PBKDF2 runs.
+// An empty entry locks instead.
+static void pw_unlock(void) {
+    if (pw_pin_len == 0) {
+        pw_lock();
+        return;
+    }
+    pw_pbkdf2_sha256((const uint8_t *)pw_pin_buf, pw_pin_len, (const uint8_t *)password_salt, strlen(password_salt), PW_KDF_ITERATIONS, pw_master);
+    pw_wipe(pw_pin_buf, sizeof(pw_pin_buf));
+    pw_pin_len       = 0;
+    pw_unlocked      = true;
+    pw_last_activity = timer_read32();
+}
+
+// Lock after PW_AUTOLOCK_MS without a key press. The timer restarts from zero
+// when the board wakes from low-power sleep, so a timer that went backwards
+// means it slept: lock then too.
+static void pw_autolock_task(void) {
+    uint32_t now = timer_read32();
+    if (pw_unlocked && (now < pw_last_tick || now - pw_last_activity > PW_AUTOLOCK_MS)) {
+        pw_lock();
+    }
+    pw_last_tick = now;
+}
+
+void housekeeping_task_user(void) {
+    pw_autolock_task();
+}
+
+// The USB host went to sleep.
+void suspend_power_down_user(void) {
+    pw_lock();
+}
+
+static void type_password(const uint8_t *hash, const char *suffix) {
     size_t length = strlen(ALLOWED_PW_CHARS);
-    while (char_count < 12) { // Only loop for the first 12 characters
-        uint8_t i = hash[char_count] % length;
-        char ascii_code = pgm_read_byte(&ALLOWED_PW_CHARS[i]);
-        if (!ascii_code) break; // Break if the end of the string is reached prematurely
-
+    for (uint8_t i = 0; i < PW_LENGTH; i++) {
         wait_ms(10);
-        send_char(ascii_code);
-        ++char_count; // Increment the character counter
-
-        // interval
-        {
-            uint8_t ms = 10;
-            while (ms--)
-                wait_ms(1);
-        }
+        send_char(ALLOWED_PW_CHARS[hash[i] % length]);
+        wait_ms(10);
     }
-    send_string_with_delay(mandatoryPrefix, 30);
+    send_string_with_delay(suffix, 30);
 }
 
-
-void generate_password(char pressed_key) {
-    char pin_str[12];  // Buffer for the PIN string (uint32_t is at most 10 digits)
-    snprintf(pin_str, sizeof(pin_str), "%lu", (unsigned long)pin);  // The PIN entered on the M3_PW layer
-
-    // Allocate buffer for the salted input (PIN string + salt + 1 for the pressed key)
-    size_t input_size = strlen(pin_str) + strlen(password_salt) + 2; // +2 for the pressed key and the null terminator
-    char salted_input[input_size];
-    memset(salted_input, 0, input_size);  // Clear the buffer
-
-    strncpy(salted_input, pin_str, sizeof(salted_input) - 1);  // Start with the PIN string
-    strncat(salted_input, password_salt, sizeof(salted_input) - strlen(salted_input) - 1);  // Safely append the salt
-
-    // Append the pressed key to the salted input, ensuring there is room for the null terminator
-    size_t current_length = strlen(salted_input);
-    if (current_length < sizeof(salted_input) - 1) {
-        salted_input[current_length] = pressed_key;
-        salted_input[current_length + 1] = '\0'; // Ensure null termination
-    }
-
-    // Buffer to hold the hashed output
-    uint8_t hash[32];  // Adjust size based on the hash function output
-    hash_function(salted_input, hash);
-
-    // Type out the hashed password
-    type_password(hash);
+// password = chars(HMAC-SHA256(master, key)) + suffix
+static void generate_password(char key) {
+    uint8_t hash[PW_HASH_LEN];
+    pw_hmac_sha256(pw_master, sizeof(pw_master), (const uint8_t *)&key, 1, hash);
+    type_password(hash, mandatoryPrefix);
+    pw_wipe(hash, sizeof(hash));
 }
+
+#ifndef PW_LEGACY_DISABLE
+// Exactly what firmware built before the PIN fix typed: it ignored the
+// entered PIN and always used these values. (The short-lived version that
+// hashed the entered PIN with the old algorithm was never flashed.)
+static void generate_legacy_password(char key) {
+    char     input[sizeof(PW_LEGACY_PIN PW_LEGACY_SALT) + 1];
+    uint32_t state[8];
+    uint8_t  hash[32];
+
+    snprintf(input, sizeof(input), "%s%s%c", PW_LEGACY_PIN, PW_LEGACY_SALT, key);
+    sha256_init(state);
+    sha256_update(state, (const uint8_t *)input, strlen(input));
+    sha256_final(hash, state);
+    type_password(hash, PW_LEGACY_SUFFIX);
+}
+#endif
 
 void PWX(char pressed_key) {
-    if (pin > 0) {
+    if (!pw_unlocked) {
+        send_string_with_delay("NoLuck!", 10);
+        return;
+    }
+
+    uint8_t mods = get_mods();
+    clear_mods(); // a held modifier must not change the typed characters
+#ifndef PW_LEGACY_DISABLE
+    if (mods & MOD_MASK_SHIFT) {
+        generate_legacy_password(pressed_key);
+    } else
+#endif
+    {
         generate_password(pressed_key);
     }
-    else {
-        send_string_with_delay("NoLuck!", 10);
-    }
+    set_mods(mods);
 }
 
 bool is_shift_pressed(void) {
@@ -295,71 +330,13 @@ void tap_wo_modifier(uint16_t keycode) {
     set_mods(mods);
 }
 
-void tap_int_value(int32_t value) {
-    if (value < 0) {
-        tap_code(KC_MINS);  // Handle negative numbers
-        value = -value;     // Make the value positive
-    }
-
-    uint32_t divisor = value;
-    while (divisor > 0) {
-        int digit = divisor % 10;
-        divisor = divisor / 10;
-        switch (digit) {
-            case 0:
-                tap_wo_modifier(KC_0);
-                break;
-            case 1:
-                tap_wo_modifier(KC_1);
-                break;
-            case 2:
-                tap_wo_modifier(KC_2);
-                break;
-            case 3:
-                tap_wo_modifier(KC_3);
-                break;
-            case 4:
-                tap_wo_modifier(KC_4);
-                break;
-            case 5:
-                tap_wo_modifier(KC_5);
-                break;
-            case 6:
-                tap_wo_modifier(KC_6);
-                break;
-            case 7:
-                tap_wo_modifier(KC_7);
-                break;
-            case 8:
-                tap_wo_modifier(KC_8);
-                break;
-            case 9:
-                tap_wo_modifier(KC_9);
-                break;
-            default:
-                send_string_with_delay("Undefined", 10);
-                break;
-
-        }
-
-    }
-}
-
-
-void tap_char(char c) {
-    if (c >= '0' && c <= '9') {
-        tap_int_value(c - '0');
-    } else if (c >= 'a' && c <= 'z') {
-        tap_wo_modifier(KC_A);
-    } else if (c >= 'A' && c <= 'Z') {
-        tap_with_modifier(KC_A, KC_LSFT);
-    } else {
-        tap_with_modifier(KC_1, KC_LSFT); //adds !
-    }
-}
-
 bool process_record_user(uint16_t keycode, keyrecord_t *record) {
   static bool win_key_pressed = false;
+
+  pw_autolock_task();
+  if (record->event.pressed) {
+      pw_last_activity = timer_read32();
+  }
 
   switch (keycode) {
     case KC_M1:
@@ -492,11 +469,23 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
       return false;
     case KC_GRV_ET_US:
       if (record->event.pressed) {
+#ifdef ET_US_WINDOWS_ALT_CODES
+        // Windows host: Alt+numpad codes (these do nothing on Linux)
         if (is_shift_pressed()) {
             tap_ascii_code(KC_P1, KC_P2, KC_P6);
         } else {
             tap_ascii_code(KC_P0, KC_P9, KC_P6);
         }
+#else
+        // Linux host (xkb "ee"): ` is AltGr + the acute key. ~ exists only as
+        // a dead key (Shift + the caron key), completed with Space.
+        if (is_shift_pressed()) {
+            tap_with_modifier(KC_GRV, KC_LSFT);
+            tap_wo_modifier(KC_SPC);
+        } else {
+            tap_with_modifier(KC_EQL, KC_RALT);
+        }
+#endif
       }
       return false;
     case KC_SCLN_ET_US:
@@ -581,155 +570,28 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
       return true;
     case KC_L:
       if (record->event.pressed && win_key_pressed) {
-          // Lock the keyboard or switch layers when Win+L is pressed
-          pin = 0;
-          pin_input = 0;
+          // Win+L locks the computer: lock the password layer with it
+          pw_lock();
       }
       return true;
-    case KC_PW_0 ... KC_PW_9:
+    case KC_PW_LOCK:
       if (record->event.pressed) {
-        pin_input = pin_input * 10 + (keycode - KC_PW_0);
+        pw_lock();
+      }
+      return false;
+    case KC_PW_0 ... KC_PW_9:
+      if (record->event.pressed && pw_pin_len < PW_PIN_MAX_DIGITS) {
+        pw_pin_buf[pw_pin_len++] = '0' + (keycode - KC_PW_0);
       }
       return false;
     case KC_PW_ENT:
       if (record->event.pressed) {
-        pin=pin_input;
-        pin_input = 0;
+        pw_unlock();
       }
       return false;
-    case KC_PW_PRNT:
+    case KC_PW_A ... KC_PW_Z:
       if (record->event.pressed) {
-        tap_int_value(pin);
-      }
-      return false;
-    case KC_PW_A:
-      if (record->event.pressed) {
-        PWX('a');
-      }
-      return false;
-    case KC_PW_B:
-      if (record->event.pressed) {
-        PWX('b');
-      }
-      return false;
-    case KC_PW_C:
-      if (record->event.pressed) {
-        PWX('c');
-      }
-      return false;
-    case KC_PW_D:
-      if (record->event.pressed) {
-        PWX('d');
-      }
-      return false;
-    case KC_PW_E:
-      if (record->event.pressed) {
-        PWX('e');
-      }
-      return false;
-    case KC_PW_F:
-      if (record->event.pressed) {
-        PWX('f');
-      }
-      return false;
-    case KC_PW_G:
-      if (record->event.pressed) {
-        PWX('g');
-      }
-      return false;
-    case KC_PW_H:
-      if (record->event.pressed) {
-        PWX('h');
-      }
-      return false;
-    case KC_PW_I:
-      if (record->event.pressed) {
-        PWX('i');
-      }
-      return false;
-    case KC_PW_J:
-      if (record->event.pressed) {
-        PWX('j');
-      }
-      return false;
-    case KC_PW_K:
-      if (record->event.pressed) {
-        PWX('k');
-      }
-      return false;
-    case KC_PW_L:
-      if (record->event.pressed) {
-        PWX('l');
-      }
-      return false;
-    case KC_PW_M:
-      if (record->event.pressed) {
-        PWX('m');
-      }
-      return false;
-    case KC_PW_N:
-      if (record->event.pressed) {
-        PWX('n');
-      }
-      return false;
-    case KC_PW_O:
-      if (record->event.pressed) {
-        PWX('o');
-      }
-      return false;
-    case KC_PW_P:
-      if (record->event.pressed) {
-        PWX('p');
-      }
-      return false;
-    case KC_PW_Q:
-      if (record->event.pressed) {
-        PWX('q');
-      }
-      return false;
-    case KC_PW_R:
-      if (record->event.pressed) {
-        PWX('r');
-      }
-      return false;
-    case KC_PW_S:
-      if (record->event.pressed) {
-        PWX('s');
-      }
-      return false;
-    case KC_PW_T:
-      if (record->event.pressed) {
-        PWX('t');
-      }
-      return false;
-    case KC_PW_U:
-      if (record->event.pressed) {
-        PWX('u');
-      }
-      return false;
-    case KC_PW_V:
-      if (record->event.pressed) {
-        PWX('v');
-      }
-      return false;
-    case KC_PW_W:
-      if (record->event.pressed) {
-        PWX('w');
-      }
-      return false;
-    case KC_PW_X:
-      if (record->event.pressed) {
-        PWX('x');
-      }
-      return false;
-    case KC_PW_Y:
-      if (record->event.pressed) {
-        PWX('y');
-      }
-      return false;
-    case KC_PW_Z:
-      if (record->event.pressed) {
-        PWX('z');
+        PWX('a' + (keycode - KC_PW_A));
       }
       return false;
     }
@@ -745,7 +607,7 @@ bool rgb_matrix_indicators_advanced_user(uint8_t led_min, uint8_t led_max) {
         //set caps lock key as red
         rgb_matrix_set_color(g_led_config.matrix_co[3][0], 255, 0, 0);
     }
-    if (pin > 0) {
+    if (pw_unlocked) {
         rgb_matrix_set_color(g_led_config.matrix_co[4][17], RGB_YELLOW);
     }
     else {
