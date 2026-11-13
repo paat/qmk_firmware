@@ -1,4 +1,4 @@
-/* Copyright 2023 @ lokher (https://www.keychron.com)
+/* Copyright 2022~2024 @ lokher (https://www.keychron.com)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,9 +20,9 @@
 #include "action.h"
 
 #ifdef KC_DEBUG
-#define kc_printf   dprintf
+#    define kc_printf dprintf
 #else
-#define kc_printf(format,...)
+#    define kc_printf(format, ...)
 #endif
 
 /* Low power mode */
@@ -78,24 +78,24 @@ void wireless_disconnect(void);
 
 void wireless_pairing(void);
 void wireless_pairing_ex(uint8_t host_idx, void *param);
-//bool bluetooth_is_activated(void);
+// bool bluetooth_is_activated(void);
 
 void wireless_enter_reset_kb(uint8_t reason);
 void wireless_enter_discoverable_kb(uint8_t host_idx);
 void wireless_enter_reconnecting_kb(uint8_t host_idx);
 void wireless_enter_connected_kb(uint8_t host_idx);
-void wireless_enter_disconnected_kb(uint8_t host_idx);
+void wireless_enter_disconnected_kb(uint8_t host_idx, uint8_t reason);
 void wireless_enter_bluetooth_pin_code_entry_kb(void);
 void wireless_exit_bluetooth_pin_code_entry_kb(void);
 void wireless_enter_sleep_kb(void);
 
-void              wireless_task(void);
-void              wireless_pre_task(void);
-void              wireless_post_task(void);
+void wireless_task(void);
+void wireless_pre_task(void);
+void wireless_post_task(void);
+void send_string_task(void);
+
 wt_state_t wireless_get_state(void);
 
 void wireless_low_battery_shutdown(void);
 
-bool process_record_wireless(uint16_t keycode, keyrecord_t *record);
-
-
+bool process_record_wireless_common(uint16_t keycode, keyrecord_t *record);

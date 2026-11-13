@@ -27,14 +27,19 @@
     "encoder": {
         "rotary": [
             {
-	        "pin_a": "B15",
-	        "pin_b": "B14",
-	        "resolution": 4
-	    }
+            "pin_a": "B15",
+            "pin_b": "B14",
+            "resolution": 4
+        }
         ]
+    },
+    "indicators": {
+        "caps_lock": "A13",
+        "on_state": 1
     },
     "rgb_matrix": {
         "driver": "snled27351_spi",
+        "sleep": true,
         "animations": {
             "band_spiral_val": true,
             "breathing": true,

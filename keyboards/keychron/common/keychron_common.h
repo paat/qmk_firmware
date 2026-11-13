@@ -30,46 +30,67 @@ enum {
     KC_FILE_EXPLORER,
     KC_SCREEN_SHOT,
     KC_CORTANA,
-    KC_SIRI,
+#ifdef WIN_LOCK_SCREEN_ENABLE
+    KC_WIN_LOCK_SCREEN,
+    __KC_WIN_LOCK_SCREEN_NEXT,
+#else
+    __KC_WIN_LOCK_SCREEN_NEXT = KC_CORTANA + 1,
+#endif
+#ifdef MAC_LOCK_SCREEN_ENABLE
+    KC_MAC_LOCK_SCREEN = __KC_WIN_LOCK_SCREEN_NEXT,
+    __KC_MAC_LOCK_SCREEN_NEXT,
+#else
+    __KC_MAC_LOCK_SCREEN_NEXT = __KC_WIN_LOCK_SCREEN_NEXT,
+#endif
+    KC_SIRI = __KC_MAC_LOCK_SCREEN_NEXT,
 #ifdef LK_WIRELESS_ENABLE
     BT_HST1,
     BT_HST2,
     BT_HST3,
     P2P4G,
     BAT_LVL,
-#else
-    BT_HST1 = _______,
-    BT_HST2 = _______,
-    BT_HST3 = _______,
-    P2P4G   = _______,
-    BAT_LVL = _______,
 #endif
-#ifdef DANANLOG_MATRIX
+#ifdef ANANLOG_MATRIX
     PROF1,
     PROF2,
     PROF3,
-#else
-    PROF1 = _______,
-    PROF2 = _______,
-    PROF3 = _______,
+#endif
+#ifdef LED_MATRIX_ENABLE
+    BL_SPI,
+    BL_SPD,
 #endif
     NEW_SAFE_RANGE,
 };
+
+#ifndef LK_WIRELESS_ENABLE
+    #define BT_HST1     KC_TRANS
+    #define BT_HST2     KC_TRANS
+    #define BT_HST3     KC_TRANS
+    #define P2P4G       KC_TRANS
+    #define BAT_LVL     KC_TRANS
+#endif
+#ifndef ANANLOG_MATRIX
+    #define PROF1 KC_TRANS
+    #define PROF2 KC_TRANS
+    #define PROF3 KC_TRANS
+#endif
 
 #define KC_TASK KC_TASK_VIEW
 #define KC_FILE KC_FILE_EXPLORER
 #define KC_SNAP KC_SCREEN_SHOT
 #define KC_CTANA KC_CORTANA
+#define KC_WLCK KC_WIN_LOCK_SCREEN
+#define KC_MLCK KC_MAC_LOCK_SCREEN
 
 typedef struct PACKED {
     uint8_t len;
     uint8_t keycode[3];
 } key_combination_t;
 
+void keychron_common_init(void);
 bool process_record_keychron_common(uint16_t keycode, keyrecord_t *record);
 void keychron_common_task(void);
 
 #ifdef ENCODER_ENABLE
 void encoder_cb_init(void);
 #endif
-
