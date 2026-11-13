@@ -423,11 +423,44 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
       pw_last_activity = timer_read32();
   }
 
-  // The RGB key steps through the lighting views. If the PC has painted over
-  // the lighting (kbd_light.py), the press only hands it back.
-  if (keycode == RGB_MOD || keycode == RGB_RMOD) {
+  // The RGB key. A tap steps to the next lighting view, on release. Held
+  // down, it turns the knob into the brightness control. If the PC has
+  // painted over the lighting (kbd_light.py), a press only hands it back.
+  static bool rgb_key_held   = false;
+  static bool rgb_key_spent  = false; // this press has done its job already
+  static bool rgb_key_turned = false;
+  if (keycode == RGB_MOD) {
+      if (record->event.pressed) {
+          rgb_key_held   = true;
+          rgb_key_turned = false;
+          rgb_key_spent  = rgb_sync_host_release();
+      } else if (rgb_key_held) {
+          rgb_key_held = false;
+          if (!rgb_key_turned && !rgb_key_spent) {
+              light_view = (light_view + 1) % PC_VIEW_COUNT;
+              apply_light_view();
+          }
+      }
+      return false;
+  }
+  if (rgb_key_held && IS_ENCODEREVENT(record->event)) {
+      if (record->event.pressed) {
+          // Stored at every step, like the stock brightness keys: the board's
+          // indicator code reloads the stored lighting state at times (when
+          // the lighting goes off at the bottom, for one), and anything not
+          // stored yet would be lost.
+          if (record->event.type == ENCODER_CW_EVENT) {
+              rgb_matrix_increase_val();
+          } else {
+              rgb_matrix_decrease_val();
+          }
+          rgb_key_turned = true;
+      }
+      return false;
+  }
+  if (keycode == RGB_RMOD) { // Fn + A: the previous view
       if (record->event.pressed && !rgb_sync_host_release()) {
-          light_view = (light_view + (keycode == RGB_MOD ? 1 : PC_VIEW_COUNT - 1)) % PC_VIEW_COUNT;
+          light_view = (light_view + PC_VIEW_COUNT - 1) % PC_VIEW_COUNT;
           apply_light_view();
       }
       return false;

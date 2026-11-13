@@ -13,18 +13,24 @@ RGB_MATRIX_EFFECT(pc_view)
 
 #include "rgb_sync.h"
 
+// A fixed colour, dimmed by the brightness setting like every other view.
+static void set_color_dimmed(uint8_t led, uint8_t r, uint8_t g, uint8_t b) {
+  uint8_t v = rgb_matrix_config.hsv.v;
+  rgb_matrix_set_color(led, scale8(r, v), scale8(g, v), scale8(b, v));
+}
+
 // e.g: A simple effect, self-contained within a single method
 static bool default_key_map(effect_params_t* params) {
   RGB_MATRIX_USE_LIMITS(led_min, led_max);
   for (uint8_t i = led_min; i < led_max; i++) {
     if (i == g_led_config.matrix_co[1][17]) {
-        rgb_matrix_set_color(i, RGB_GREEN);
+        set_color_dimmed(i, RGB_GREEN);
     }
     else if (i == g_led_config.matrix_co[5][17]) {
-        rgb_matrix_set_color(i, 255,0,255);
+        set_color_dimmed(i, 255,0,255);
     }
     else {
-        rgb_matrix_set_color(i, RGB_BLUE);
+        set_color_dimmed(i, RGB_BLUE);
     }
   }
   return rgb_matrix_check_finished_leds(led_max);
@@ -34,13 +40,13 @@ static bool et_us_key_map(effect_params_t* params) {
   RGB_MATRIX_USE_LIMITS(led_min, led_max);
   for (uint8_t i = led_min; i < led_max; i++) {
     if (i == g_led_config.matrix_co[1][17]) {
-        rgb_matrix_set_color(i, RGB_BLUE);
+        set_color_dimmed(i, RGB_BLUE);
     }
     else if (i == g_led_config.matrix_co[5][17]) {
-        rgb_matrix_set_color(i, RGB_MAGENTA);
+        set_color_dimmed(i, RGB_MAGENTA);
     }
     else {
-        rgb_matrix_set_color(i, RGB_GREEN);
+        set_color_dimmed(i, RGB_GREEN);
     }
   }
   return rgb_matrix_check_finished_leds(led_max);
