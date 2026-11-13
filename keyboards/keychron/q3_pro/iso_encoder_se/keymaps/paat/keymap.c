@@ -58,13 +58,16 @@ static uint8_t  pw_master[PW_HASH_LEN];        // PBKDF2(PIN, salt); meaningful 
 static bool     pw_unlocked      = false;
 static uint32_t pw_last_activity = 0;          // time of the last key press, for the idle auto-lock
 static uint32_t pw_last_tick     = 0;          // last timer value seen, to notice the timer restarting
+static uint8_t  pw_fingerprint   = 0;          // colour hint derived from the master key
 
 
 // clang-format off
+// The Mac/Win switch on the board picks the host OS profile. Both profiles
+// have the same keys; they differ only in how OS-specific characters are typed.
 enum layers{
-  MAC_BASE,
+  MAC_BASE, // switch at Mac: Linux host
   MAC_FN,
-  WIN_BASE,
+  WIN_BASE, // switch at Win: Windows host
   WIN_FN,
   WIN_ET_US, //Emulate UK layout in system where ET layout is default
   M4_MY, //my personal autotype macros
@@ -140,15 +143,15 @@ enum custom_keycodes {
 
 const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
     [MAC_BASE] = LAYOUT_93_iso(
-        KC_MUTE,  KC_ESC,             KC_BRID,  KC_BRIU,  KC_MCTL,  KC_LPAD,  RGB_VAD,  RGB_VAI,  KC_MPRV,  KC_MPLY,  KC_MNXT,  KC_MUTE,  KC_VOLD,    KC_VOLU,  KC_SNAP,  KC_SIRI,  RGB_MOD,
-                  KC_GRV,   KC_1,     KC_2,     KC_3,     KC_4,     KC_5,     KC_6,     KC_7,     KC_8,     KC_9,     KC_0,     KC_MINS,  KC_EQL,     KC_BSPC,  KC_INS,   KC_HOME,  KC_PGUP,
-        _______,  KC_TAB,   KC_Q,     KC_W,     KC_E,     KC_R,     KC_T,     KC_Y,     KC_U,     KC_I,     KC_O,     KC_P,     KC_LBRC,  KC_RBRC,              KC_DEL,   KC_END,   KC_PGDN,
-        _______,  KC_CAPS,  KC_A,     KC_S,     KC_D,     KC_F,     KC_G,     KC_H,     KC_J,     KC_K,     KC_L,     KC_SCLN,  KC_QUOT,  KC_NUHS,    KC_ENT,
-        _______,  KC_LSFT,  KC_NUBS,  KC_Z,     KC_X,     KC_C,     KC_V,     KC_B,     KC_N,     KC_M,     KC_COMM,  KC_DOT,   KC_SLSH,              KC_RSFT,            KC_UP,
-        _______,  KC_LCTL,  KC_LOPT,  KC_LCMD,                                KC_SPC,                                 KC_RCMD,  KC_ROPT,  MO(MAC_FN), KC_RCTL,  KC_LEFT,  KC_DOWN,  KC_RGHT),
+        KC_MUTE,        KC_ESC,             KC_F1,    KC_F2,    KC_F3,    KC_F4,    KC_F5,    KC_F6,    KC_F7,    KC_F8,    KC_F9,    KC_F10,   KC_F11,     KC_F12,   KC_PSCR,  KC_CTANA, RGB_MOD,
+                        KC_GRV,   KC_1,     KC_2,     KC_3,     KC_4,     KC_5,     KC_6,     KC_7,     KC_8,     KC_9,     KC_0,     KC_MINS,  KC_EQL,     KC_BSPC,  KC_INS,   KC_HOME,  KC_PGUP,
+        KC_M1,          KC_TAB,   KC_Q,     KC_W,     KC_E,     KC_R,     KC_T,     KC_Y,     KC_U,     KC_I,     KC_O,     KC_P,     KC_LBRC,  KC_RBRC,              KC_DEL,   KC_END,   KC_PGDN,
+        _______,        KC_CAPS,  KC_A,     KC_S,     KC_D,     KC_F,     KC_G,     KC_H,     KC_J,     KC_K,     KC_L,     KC_SCLN,  KC_QUOT,  KC_NUHS,    KC_ENT,
+        MO(M3_PW),        KC_LSFT,  KC_NUBS,  KC_Z,     KC_X,     KC_C,     KC_V,     KC_B,     KC_N,     KC_M,     KC_COMM,  KC_DOT,   KC_SLSH,              KC_RSFT,            KC_UP,
+        MO(M4_MY),        KC_LCTL,  KC_LWIN,  KC_LALT,                                KC_SPC,                                 KC_RALT,  KC_RWIN,  MO(MAC_FN), KC_RCTL,  KC_LEFT,  KC_DOWN,  KC_RGHT),
 
     [MAC_FN] = LAYOUT_93_iso(
-        RGB_TOG,  _______,            KC_F1,    KC_F2,    KC_F3,    KC_F4,    KC_F5,    KC_F6,    KC_F7,    KC_F8,    KC_F9,    KC_F10,   KC_F11,     KC_F12,   _______,  _______,  RGB_TOG,
+        RGB_TOG,  _______,            KC_BRID,  KC_BRIU,  KC_TASK,  KC_FILE,  RGB_VAD,  RGB_VAI,  KC_MPRV,  KC_MPLY,  KC_MNXT,  KC_MUTE,  KC_VOLD,  KC_VOLU,    _______,  _______,  RGB_TOG,
                   _______,  BT_HST1,  BT_HST2,  BT_HST3,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,  _______,    _______,  _______,  _______,  _______,
         _______,  RGB_TOG,  RGB_MOD,  RGB_VAI,  RGB_HUI,  RGB_SAI,  RGB_SPI,  _______,  _______,  _______,  _______,  _______,  _______,  _______,              _______,  _______,  _______,
         _______,  _______,  RGB_RMOD, RGB_VAD,  RGB_HUD,  RGB_SAD,  RGB_SPD,  _______,  _______,  _______,  _______,  _______,  _______,  _______,    _______,
@@ -196,11 +199,54 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
         _______,  _______,  _______,  _______,                                _______,                                _______,  _______,  _______,    _______,  _______,  _______,  _______),
 };
 
+#define LUT_BIT(lut, pos) ((pgm_read_byte(&((lut)[(pos) / 8])) >> ((pos) % 8)) & 0x01)
+
+// send_char() with a pause after pressing Shift or AltGr; without it some
+// hosts miss the modifier and type the unshifted character.
+static void send_char_slow(char ascii_code) {
+    uint8_t c = (uint8_t)ascii_code;
+    if (c > 127) {
+        return;
+    }
+    uint8_t keycode    = pgm_read_byte(&ascii_to_keycode_lut[c]);
+    bool    is_shifted = LUT_BIT(ascii_to_shift_lut, c);
+    bool    is_altgred = LUT_BIT(ascii_to_altgr_lut, c);
+    bool    is_dead    = LUT_BIT(ascii_to_dead_lut, c);
+
+    if (is_shifted) {
+        register_code(KC_LEFT_SHIFT);
+        wait_ms(10);
+    }
+    if (is_altgred) {
+        register_code(KC_RIGHT_ALT);
+        wait_ms(10);
+    }
+    tap_code(keycode);
+    if (is_altgred) {
+        unregister_code(KC_RIGHT_ALT);
+    }
+    if (is_shifted) {
+        unregister_code(KC_LEFT_SHIFT);
+    }
+    if (is_dead) {
+        tap_code(KC_SPACE);
+    }
+}
+
+// Plain text only (no SS_TAP-style escapes).
+static void send_string_slow(const char *string, uint8_t interval) {
+    while (*string) {
+        send_char_slow(*string++);
+        wait_ms(interval);
+    }
+}
+
 static void pw_lock(void) {
     pw_wipe(pw_master, sizeof(pw_master));
     pw_wipe(pw_pin_buf, sizeof(pw_pin_buf));
-    pw_pin_len  = 0;
-    pw_unlocked = false;
+    pw_pin_len     = 0;
+    pw_fingerprint = 0;
+    pw_unlocked    = false;
 }
 
 // Stretch the entered PIN into the master key. Blocks while PBKDF2 runs.
@@ -212,7 +258,15 @@ static void pw_unlock(void) {
     }
     pw_pbkdf2_sha256((const uint8_t *)pw_pin_buf, pw_pin_len, (const uint8_t *)password_salt, strlen(password_salt), PW_KDF_ITERATIONS, pw_master);
     pw_wipe(pw_pin_buf, sizeof(pw_pin_buf));
-    pw_pin_len       = 0;
+    pw_pin_len = 0;
+
+    // One byte of a separate hash picks the indicator colour, so a mistyped
+    // PIN shows up as an unfamiliar colour.
+    uint8_t hash[PW_HASH_LEN];
+    pw_hmac_sha256(pw_master, sizeof(pw_master), (const uint8_t *)"fingerprint", 11, hash);
+    pw_fingerprint = hash[0];
+    pw_wipe(hash, sizeof(hash));
+
     pw_unlocked      = true;
     pw_last_activity = timer_read32();
 }
@@ -228,6 +282,15 @@ static void pw_autolock_task(void) {
     pw_last_tick = now;
 }
 
+// Releasing M4 before Enter discards the digits typed so far.
+layer_state_t layer_state_set_user(layer_state_t state) {
+    if (!layer_state_cmp(state, M3_PW) && pw_pin_len > 0) {
+        pw_wipe(pw_pin_buf, sizeof(pw_pin_buf));
+        pw_pin_len = 0;
+    }
+    return state;
+}
+
 void housekeeping_task_user(void) {
     pw_autolock_task();
 }
@@ -241,10 +304,10 @@ static void type_password(const uint8_t *hash, const char *suffix) {
     size_t length = strlen(ALLOWED_PW_CHARS);
     for (uint8_t i = 0; i < PW_LENGTH; i++) {
         wait_ms(10);
-        send_char(ALLOWED_PW_CHARS[hash[i] % length]);
+        send_char_slow(ALLOWED_PW_CHARS[hash[i] % length]);
         wait_ms(10);
     }
-    send_string_with_delay(suffix, 30);
+    send_string_slow(suffix, 30);
 }
 
 // password = chars(HMAC-SHA256(master, key)) + suffix
@@ -274,7 +337,7 @@ static void generate_legacy_password(char key) {
 
 void PWX(char pressed_key) {
     if (!pw_unlocked) {
-        send_string_with_delay("NoLuck!", 10);
+        send_string_slow("NoLuck!", 10);
         return;
     }
 
@@ -289,6 +352,11 @@ void PWX(char pressed_key) {
         generate_password(pressed_key);
     }
     set_mods(mods);
+}
+
+// True when the Mac/Win switch is at Mac, which this keymap uses for Linux hosts.
+static bool host_is_linux(void) {
+    return get_highest_layer(default_layer_state) == MAC_BASE;
 }
 
 bool is_shift_pressed(void) {
@@ -469,23 +537,23 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
       return false;
     case KC_GRV_ET_US:
       if (record->event.pressed) {
-#ifdef ET_US_WINDOWS_ALT_CODES
-        // Windows host: Alt+numpad codes (these do nothing on Linux)
-        if (is_shift_pressed()) {
-            tap_ascii_code(KC_P1, KC_P2, KC_P6);
+        if (host_is_linux()) {
+            // xkb "ee": ` is AltGr + the acute key. ~ exists only as a dead
+            // key (Shift + the caron key), completed with Space.
+            if (is_shift_pressed()) {
+                tap_with_modifier(KC_GRV, KC_LSFT);
+                tap_wo_modifier(KC_SPC);
+            } else {
+                tap_with_modifier(KC_EQL, KC_RALT);
+            }
         } else {
-            tap_ascii_code(KC_P0, KC_P9, KC_P6);
+            // Windows: Alt+numpad codes (these do nothing on Linux)
+            if (is_shift_pressed()) {
+                tap_ascii_code(KC_P1, KC_P2, KC_P6);
+            } else {
+                tap_ascii_code(KC_P0, KC_P9, KC_P6);
+            }
         }
-#else
-        // Linux host (xkb "ee"): ` is AltGr + the acute key. ~ exists only as
-        // a dead key (Shift + the caron key), completed with Space.
-        if (is_shift_pressed()) {
-            tap_with_modifier(KC_GRV, KC_LSFT);
-            tap_wo_modifier(KC_SPC);
-        } else {
-            tap_with_modifier(KC_EQL, KC_RALT);
-        }
-#endif
       }
       return false;
     case KC_SCLN_ET_US:
@@ -535,29 +603,29 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
       return false;
     case KC_MY_EM:
       if (record->event.pressed) {
-            send_string_with_delay("mymail", 5);
+            send_string_slow("mymail", 5);
             tap_with_modifier(KC_2, KC_RALT);
-            send_string_with_delay("gmail.com", 5);
+            send_string_slow("gmail.com", 5);
       }
       return false;
     case KC_MY_PH:
       if (record->event.pressed) {
-            send_string_with_delay("myphone", 5);
+            send_string_slow("myphone", 5);
       }
       return false;
     case KC_MY_IK:
       if (record->event.pressed) {
-            send_string_with_delay("mypersonalcode", 5);
+            send_string_slow("mypersonalcode", 5);
       }
       return false;
     case KC_MY_ST:
       if (record->event.pressed) {
-            send_string_with_delay("My streetaddress", 5);
+            send_string_slow("My streetaddress", 5);
       }
       return false;
     case KC_MY_ZIP:
       if (record->event.pressed) {
-            send_string_with_delay("myzip", 5);
+            send_string_slow("myzip", 5);
       }
       return false;
     case KC_LWIN:
@@ -607,10 +675,19 @@ bool rgb_matrix_indicators_advanced_user(uint8_t led_min, uint8_t led_max) {
         //set caps lock key as red
         rgb_matrix_set_color(g_led_config.matrix_co[3][0], 255, 0, 0);
     }
-    if (pw_unlocked) {
+    // Password layer state: white = PIN digits pending, red = locked,
+    // any other colour = unlocked (the colour depends on the PIN).
+    if (pw_pin_len > 0) {
+        rgb_matrix_set_color(g_led_config.matrix_co[4][17], RGB_WHITE);
+    } else if (pw_unlocked) {
+#ifdef PW_FINGERPRINT_DISABLE
         rgb_matrix_set_color(g_led_config.matrix_co[4][17], RGB_YELLOW);
-    }
-    else {
+#else
+        // hue 30..225: yellow through green and blue to purple, never red
+        RGB rgb = hsv_to_rgb((HSV){30 + (uint8_t)((uint16_t)pw_fingerprint * 195 / 255), 255, 255});
+        rgb_matrix_set_color(g_led_config.matrix_co[4][17], rgb.r, rgb.g, rgb.b);
+#endif
+    } else {
         rgb_matrix_set_color(g_led_config.matrix_co[4][17], RGB_RED);
     }
     return false;
