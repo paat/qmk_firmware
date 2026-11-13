@@ -400,6 +400,21 @@ void tap_wo_modifier(uint16_t keycode) {
     set_mods(mods);
 }
 
+// What the lighting shows, stepped through with the RGB key: the static
+// layout colours (PC_VIEW_NONE), then the views the PC generates.
+static uint8_t light_view = PC_VIEW_NONE;
+
+static void apply_light_view(void) {
+    rgb_sync_set_pc_view(light_view);
+    if (light_view != PC_VIEW_NONE) {
+        rgb_matrix_mode_noeeprom(RGB_MATRIX_CUSTOM_pc_view);
+    } else if (layer_state_is(WIN_ET_US)) {
+        rgb_matrix_mode_noeeprom(RGB_MATRIX_CUSTOM_et_us_key_map);
+    } else {
+        rgb_matrix_mode_noeeprom(RGB_MATRIX_CUSTOM_default_key_map);
+    }
+}
+
 bool process_record_user(uint16_t keycode, keyrecord_t *record) {
   static bool win_key_pressed = false;
 
@@ -408,29 +423,21 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
       pw_last_activity = timer_read32();
   }
 
-  // The RGB key first hands the lighting back from the PC, if it has it.
-  // That key press is swallowed whole: the effect changes on key release.
+  // The RGB key steps through the lighting views. If the PC has painted over
+  // the lighting (kbd_light.py), the press only hands it back.
   if (keycode == RGB_MOD || keycode == RGB_RMOD) {
-      static bool rgb_key_swallowed = false;
-      if (record->event.pressed) {
-          rgb_key_swallowed = rgb_sync_host_release();
+      if (record->event.pressed && !rgb_sync_host_release()) {
+          light_view = (light_view + (keycode == RGB_MOD ? 1 : PC_VIEW_COUNT - 1)) % PC_VIEW_COUNT;
+          apply_light_view();
       }
-      if (rgb_key_swallowed) {
-          rgb_key_swallowed = record->event.pressed;
-          return false;
-      }
+      return false;
   }
 
   switch (keycode) {
     case KC_M1:
       if (record->event.pressed) {
         layer_invert(WIN_ET_US);
-        if (layer_state_is(WIN_ET_US)) {
-            rgb_matrix_mode(RGB_MATRIX_CUSTOM_et_us_key_map);
-        }
-        else {
-            rgb_matrix_mode(RGB_MATRIX_CUSTOM_default_key_map);
-        }
+        apply_light_view();
       }
       return false;
     case KC_LBRC_ET_US:
@@ -682,7 +689,7 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
 }
 
 void keyboard_post_init_user(void) {
-    rgb_matrix_mode(RGB_MATRIX_CUSTOM_default_key_map);
+    apply_light_view();
 }
 
 bool rgb_matrix_indicators_advanced_user(uint8_t led_min, uint8_t led_max) {

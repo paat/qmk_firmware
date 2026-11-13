@@ -10,10 +10,14 @@
 // LED (host/kbd_light.py). They scale with the keyboard's brightness setting.
 //
 // Every report is 32 bytes and starts with 0xC5:
-//   keyboard -> host   C5 01 zones  R,G,B per zone
+//   keyboard -> host   C5 01 zones  R,G,B per zone ... [30] flags
 //   host -> keyboard   C5 10 hold   R,G,B per zone        paint all zones
 //                      C5 11 hold start count  R,G,B...   paint LEDs start..
+//                      C5 12 style  level per zone        view data: bars
+//                      C5 13 R,G,B per zone               view data: canvas
 //                      C5 1F                              release
+// The low 4 bits of the flags are the view (enum rgb_sync_pc_view) the
+// keyboard is showing and wants data for; host/rgb_sync.py generates it.
 // `hold` is how many seconds the paint stays without a further report
 // (0 = until released), so a host program that dies does not leave it stuck.
 
@@ -24,19 +28,22 @@
 #include "rgb_sync.h"
 
 #define RGB_SYNC_MAGIC 0xC5
-#define RGB_SYNC_ZONES 9
 #define RGB_SYNC_FRAME_MS 40       // at most 25 frames per second
 #define RGB_SYNC_HEARTBEAT_MS 1000 // resend an unchanged frame this often
 #define RGB_SYNC_HEADER 3
+#define RGB_SYNC_FLAGS (RAW_EPSIZE - 2) // byte of the frame holding the flags
+#define RGB_SYNC_PC_STALE_MS 500 // view data older than this is not shown
 
 enum {
     RGB_SYNC_FRAME      = 0x01,
     RGB_SYNC_SET_ZONES  = 0x10,
     RGB_SYNC_SET_LEDS   = 0x11,
+    RGB_SYNC_BARS       = 0x12,
+    RGB_SYNC_CANVAS     = 0x13,
     RGB_SYNC_RELEASE    = 0x1F,
 };
 
-_Static_assert(RGB_SYNC_HEADER + RGB_SYNC_ZONES * 3 <= RAW_EPSIZE, "rgb_sync frame does not fit a raw HID report");
+_Static_assert(RGB_SYNC_HEADER + RGB_SYNC_ZONES * 3 <= RGB_SYNC_FLAGS, "rgb_sync frame does not fit a raw HID report");
 
 // Defined in drivers/led/snled27351.c: the colours last written to the LEDs.
 extern uint8_t g_pwm_buffer[SNLED27351_DRIVER_COUNT][192];
@@ -46,6 +53,11 @@ static bool     host_painted[RGB_MATRIX_LED_COUNT]; // LEDs the host has taken o
 static bool     host_active  = false;
 static uint32_t host_last    = 0; // time of the last paint report
 static uint8_t  host_hold_s  = 0;
+
+static uint8_t            pc_view  = PC_VIEW_NONE;
+static rgb_sync_pc_data_t pc_data;
+static bool               pc_fresh = false;
+static uint32_t           pc_last  = 0;
 
 static uint8_t led_zone(uint8_t led) {
     return MIN((uint16_t)g_led_config.point[led].x * RGB_SYNC_ZONES / 225, RGB_SYNC_ZONES - 1);
@@ -94,6 +106,13 @@ void raw_hid_receive_user(uint8_t *data, uint8_t length) {
             }
             break;
         }
+        case RGB_SYNC_BARS:
+        case RGB_SYNC_CANVAS:
+            pc_data.kind = data[1] == RGB_SYNC_BARS ? PC_DATA_BARS : PC_DATA_CANVAS;
+            memcpy(pc_data.values, &data[2], sizeof(pc_data.values));
+            pc_fresh = true;
+            pc_last  = timer_read32();
+            return;
         case RGB_SYNC_RELEASE:
             rgb_sync_host_release();
             return;
@@ -103,6 +122,24 @@ void raw_hid_receive_user(uint8_t *data, uint8_t length) {
     host_active = true;
     host_hold_s = data[2];
     host_last   = timer_read32();
+}
+
+void rgb_sync_set_pc_view(uint8_t view) {
+    if (view != pc_view) {
+        pc_view  = view;
+        pc_fresh = false; // what is there belongs to the previous view
+    }
+}
+
+uint8_t rgb_sync_pc_view(void) {
+    return pc_view;
+}
+
+const rgb_sync_pc_data_t *rgb_sync_pc_data(void) {
+    if (pc_fresh && timer_elapsed32(pc_last) > RGB_SYNC_PC_STALE_MS) {
+        pc_fresh = false;
+    }
+    return pc_fresh ? &pc_data : NULL;
 }
 
 void rgb_sync_host_render(uint8_t led_min, uint8_t led_max) {
@@ -183,6 +220,9 @@ void rgb_sync_task(void) {
 
     uint8_t frame[RAW_EPSIZE] = {RGB_SYNC_MAGIC, RGB_SYNC_FRAME, RGB_SYNC_ZONES};
     rgb_sync_sample(frame + RGB_SYNC_HEADER);
+    if (rgb_matrix_is_enabled() && rgb_matrix_get_mode() == RGB_MATRIX_CUSTOM_pc_view) {
+        frame[RGB_SYNC_FLAGS] = pc_view & 0x0F;
+    }
 
     if (memcmp(frame, sent, sizeof(frame)) == 0 && timer_elapsed32(last_sent) < RGB_SYNC_HEARTBEAT_MS) {
         return;

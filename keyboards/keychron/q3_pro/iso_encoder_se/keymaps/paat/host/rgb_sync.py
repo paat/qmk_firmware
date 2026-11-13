@@ -22,9 +22,14 @@ import sys
 import threading
 import time
 
+import views
+from desktop import Desktop
+
 KEYBOARD_HID_ID = "0003:00003434:00000631"  # USB, Keychron, Q3 Pro
 RAW_HID_DESCRIPTOR = bytes.fromhex("0660ff0961")  # usage page 0xFF60, usage 0x61
 FRAME_MAGIC = bytes([0xC5, 0x01])
+FRAME_FLAGS = 30  # byte of the frame holding the flags
+FLAGS_VIEW = 0x0F  # the PC-generated view the keyboard shows; 0 = none
 RETRY_SECONDS = 2
 REFRESH_SECONDS = 5  # repaint even unchanged colours: other tools may overwrite them
 
@@ -79,7 +84,12 @@ def parse_frame(report):
     return [tuple(data[i:i + 3]) for i in range(0, len(data), 3)]
 
 
-def read_keyboard(latest):
+def wanted_view(report):
+    return report[FRAME_FLAGS] & FLAGS_VIEW if len(report) > FRAME_FLAGS else 0
+
+
+def read_keyboard(latest, wanted):
+    desktop = Desktop(log)  # tray icon and notifications for the current view
     complained = None
     while True:
         path = find_keyboard()
@@ -101,17 +111,25 @@ def read_keyboard(latest):
         try:
             while True:
                 if select.select([fd], [], [], 5)[0]:
-                    frame = parse_frame(os.read(fd, 64))
+                    report = os.read(fd, 64)
+                    frame = parse_frame(report)
                     if frame:
                         latest.put(frame)
+                        wanted.set(wanted_view(report), path)
+                        desktop.show(wanted_view(report))
                         silent_since = None
-                elif silent_since and time.monotonic() - silent_since > 5:
-                    log("keyboard: no frames; is the rgb_sync firmware flashed "
-                        "and the board in cable mode?")
-                    silent_since = None
+                else:
+                    wanted.set(*wanted.NOTHING)  # no frames: Bluetooth, or asleep
+                    desktop.show(None)
+                    if silent_since and time.monotonic() - silent_since > 5:
+                        log("keyboard: no frames; is the rgb_sync firmware flashed "
+                            "and the board in cable mode?")
+                        silent_since = None
         except OSError as e:
             log(f"keyboard: {e}")
         finally:
+            wanted.set(*wanted.NOTHING)
+            desktop.show(None)
             os.close(fd)
         time.sleep(RETRY_SECONDS)
 
@@ -180,7 +198,7 @@ class OpenRGB:
         self._request(0, self.REQUEST_CONTROLLER_COUNT)
 
     def controllers(self):
-        """[(index, name, [LED count per zone], direct mode or None, [empty resizable zones])]"""
+        """[(index, name, [LED count per zone], direct mode or None, [resizable zones])]"""
         count = struct.unpack("<I", self._request(0, self.REQUEST_CONTROLLER_COUNT))[0]
         return [(i, *self._parse_controller(self._request(i, self.REQUEST_CONTROLLER_DATA)))
                 for i in range(count)]
@@ -219,20 +237,21 @@ class OpenRGB:
             if mode_name == "Direct":
                 direct = struct.pack("<i", mode) + data[start:pos]
         zones = []
-        empty = []  # zones for LED strips whose length has not been set
+        resizable = []  # zones for LED strips, whose length is up to the user
         for zone in range(take("H")):
             text()
-            pos += 2 * 4  # type, LEDs min
+            take("i")  # type
+            leds_min = take("I")
             leds_max = take("I")
             zones.append(take("I"))
-            if zones[-1] == 0 and leds_max > 0:
-                empty.append(zone)
+            if leds_max > leds_min:
+                resizable.append(zone)
             matrix = take("H")
             pos += matrix
         leds = take("H")
         if sum(zones) != leds:
             zones = [leds]
-        return name, zones, direct, empty
+        return name, zones, direct, resizable
 
     def resize_zone(self, device, zone, leds):
         self._send(device, self.RESIZE_ZONE, struct.pack("<ii", zone, leds))
@@ -265,13 +284,48 @@ def colors_for(frame, zones, brightness):
     return colors
 
 
+def light(text):
+    """--light ROLE=DEVICE:FIRST[-LAST] -> (role, device, first, last)"""
+    try:
+        role, where = text.split("=", 1)
+        device, leds = where.rsplit(":", 1)
+        first, _, last = leds.partition("-")
+        first, last = int(first), int(last or first)
+        if not role or not device or not 0 <= first <= last:
+            raise ValueError
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"not ROLE=DEVICE:FIRST[-LAST]: {text}")
+    return role, device.lower(), first, last
+
+
+ACCENT_FULL = 150  # brightest channel of a frame at which accents are at full brightness
+
+
+def with_accents(colors, name, lights, frame, brightness):
+    """Lights with a role show the colour a view has set for that role.
+
+    They dim along with the keyboard: its brightness is not reported, but how
+    bright the frame is as a whole follows it, down to off.
+    """
+    accents = views.accents
+    if not accents:
+        return colors
+    brightness *= min(1, max(max(c) for c in frame) / ACCENT_FULL)
+    for role, device, first, last in lights:
+        if role in accents and device in name.lower():
+            accent = tuple(min(255, round(v * brightness)) for v in accents[role])
+            colors = [accent if first <= i <= last else c for i, c in enumerate(colors)]
+    return colors
+
+
 def mirror(latest, args):
     rgb = OpenRGB(args.host, args.port)
     try:
         if args.strip_leds:
-            for index, _, _, _, empty in rgb.controllers():
-                for zone in empty:
-                    rgb.resize_zone(index, zone, args.strip_leds)
+            for index, _, zones, _, resizable in rgb.controllers():
+                for zone in resizable:
+                    if zones[zone] != args.strip_leds:
+                        rgb.resize_zone(index, zone, args.strip_leds)
         devices = [d for d in rgb.controllers()
                    if sum(d[2]) and not any(s.lower() in d[1].lower() for s in args.skip)]
         if not devices:
@@ -287,8 +341,10 @@ def mirror(latest, args):
                 shown.clear()
                 refreshed = time.monotonic()
             if frame:
-                for index, _, zones, _, _ in devices:
-                    colors = colors_for(frame, zones, args.brightness)
+                shown_frame = views.modulate(frame)
+                for index, name, zones, _, _ in devices:
+                    colors = with_accents(colors_for(shown_frame, zones, args.brightness), name, args.light,
+                                          frame, args.brightness)
                     if shown.get(index) != colors:
                         rgb.set_leds(index, colors)
                         shown[index] = colors
@@ -307,7 +363,10 @@ def main():
                         help="leave devices whose name contains NAME alone (repeatable)")
     parser.add_argument("--brightness", type=float, default=1.0, help="scale the colours, e.g. 0.6")
     parser.add_argument("--strip-leds", type=int, default=0, metavar="N",
-                        help="drive N LEDs on addressable headers whose strip length is not set in OpenRGB")
+                        help="set the strip length of every addressable header to N LEDs")
+    parser.add_argument("--light", action="append", default=[], type=light, metavar="ROLE=DEVICE:FIRST[-LAST]",
+                        help="give LEDs FIRST..LAST of the device whose name contains DEVICE a role (cpu, memory, "
+                             "gpu) that views can colour by themselves, e.g. cpu=B550:3 (repeatable)")
     parser.add_argument("--demo", action="store_true", help="show a moving rainbow instead of the keyboard")
     parser.add_argument("--list", action="store_true", help="list OpenRGB devices and exit")
     args = parser.parse_args()
@@ -315,11 +374,16 @@ def main():
     if args.list:
         rgb = OpenRGB(args.host, args.port)
         for index, name, zones, _, _ in rgb.controllers():
-            print(f"{index}: {name}: zones of {zones} LEDs")
+            print(f"{index}: {name}: zones of {zones} LEDs (LED numbers 0-{sum(zones) - 1})")
         return
 
     latest = Latest()
-    threading.Thread(target=demo if args.demo else read_keyboard, args=(latest,), daemon=True).start()
+    if args.demo:
+        threading.Thread(target=demo, args=(latest,), daemon=True).start()
+    else:
+        wanted = views.Wanted()
+        threading.Thread(target=read_keyboard, args=(latest, wanted), daemon=True).start()
+        threading.Thread(target=views.serve, args=(wanted,), daemon=True).start()
 
     complained = None
     while True:
