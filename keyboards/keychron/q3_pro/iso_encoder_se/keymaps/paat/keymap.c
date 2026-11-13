@@ -19,9 +19,22 @@
 
 static uint32_t pin_input = 0; // for processing ongoing input
 static uint32_t pin = 0;  // store pin after enter key
-const char *password_salt = "Kynnivare5";
+
+// Private values live in secrets.h next to this file (gitignored, see
+// secrets.h.example). Without it the published defaults below are used.
+#if __has_include("secrets.h")
+#    include "secrets.h"
+#endif
+#ifndef PASSWORD_SALT
+#    define PASSWORD_SALT "Kynnivare5"
+#endif
+#ifndef PASSWORD_SUFFIX
+#    define PASSWORD_SUFFIX "!8zY"
+#endif
+
+const char *password_salt = PASSWORD_SALT;
 const char ALLOWED_PW_CHARS[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!#.,";
-const char *mandatoryPrefix = "!8zY";
+const char *mandatoryPrefix = PASSWORD_SUFFIX;
 
 
 // clang-format off
@@ -208,9 +221,8 @@ void type_password(uint8_t* hash) {
 
 
 void generate_password(char pressed_key) {
-    long pin = 123456; // Assuming you have a pin number. Make sure to define or fetch it appropriately.
-    char pin_str[12];  // Buffer for the PIN string
-    snprintf(pin_str, sizeof(pin_str), "%ld", pin);  // Convert PIN number to string
+    char pin_str[12];  // Buffer for the PIN string (uint32_t is at most 10 digits)
+    snprintf(pin_str, sizeof(pin_str), "%lu", (unsigned long)pin);  // The PIN entered on the M3_PW layer
 
     // Allocate buffer for the salted input (PIN string + salt + 1 for the pressed key)
     size_t input_size = strlen(pin_str) + strlen(password_salt) + 2; // +2 for the pressed key and the null terminator
