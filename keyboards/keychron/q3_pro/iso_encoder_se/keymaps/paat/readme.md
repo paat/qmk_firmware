@@ -46,4 +46,14 @@ To try the PC side without the keyboard: `openrgb --server &` then `host/rgb_syn
 - `--skip NAME`: leave devices whose name contains NAME alone.
 - `--brightness 0.6`: dim the other devices.
 
+### Lighting from the PC
+`host/kbd_light.py` paints colours over the keyboard's own effect: the whole board, nine left-to-right bands, or single LEDs by index. The other devices follow. Painted colours scale with the keyboard's brightness and stay until released, until the optional `--hold` seconds pass, or until the RGB key is pressed (that press only hands the lighting back). Caps lock and the password indicator stay on top.
+
+    host/kbd_light.py color ff8800
+    host/kbd_light.py --hold 5 led 0 ff0000
+    host/kbd_light.py cpu
+    host/kbd_light.py release
+
+It is also a small Python module (`from kbd_light import Keyboard`) for your own programs. This direction needs the `raw_hid_receive_user` hook in `q3_pro.c`.
+
 An ASUS graphics card whose stock cooler was replaced still shows up in OpenRGB, but its lighting chip drives nothing.

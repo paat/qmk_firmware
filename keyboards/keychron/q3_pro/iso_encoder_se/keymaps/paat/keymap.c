@@ -408,6 +408,19 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
       pw_last_activity = timer_read32();
   }
 
+  // The RGB key first hands the lighting back from the PC, if it has it.
+  // That key press is swallowed whole: the effect changes on key release.
+  if (keycode == RGB_MOD || keycode == RGB_RMOD) {
+      static bool rgb_key_swallowed = false;
+      if (record->event.pressed) {
+          rgb_key_swallowed = rgb_sync_host_release();
+      }
+      if (rgb_key_swallowed) {
+          rgb_key_swallowed = record->event.pressed;
+          return false;
+      }
+  }
+
   switch (keycode) {
     case KC_M1:
       if (record->event.pressed) {
@@ -673,6 +686,7 @@ void keyboard_post_init_user(void) {
 }
 
 bool rgb_matrix_indicators_advanced_user(uint8_t led_min, uint8_t led_max) {
+    rgb_sync_host_render(led_min, led_max);
     if (host_keyboard_led_state().caps_lock) {
         //set caps lock key as red
         rgb_matrix_set_color(g_led_config.matrix_co[3][0], 255, 0, 0);

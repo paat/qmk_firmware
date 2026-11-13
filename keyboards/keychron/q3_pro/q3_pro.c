@@ -312,10 +312,16 @@ bool via_command_kb(uint8_t *data, uint8_t length) {
 }
 
 #if !defined(VIA_ENABLE)
+// Lets a keymap handle raw HID reports the board does not use itself.
+__attribute__((weak)) void raw_hid_receive_user(uint8_t *data, uint8_t length) {}
+
 void raw_hid_receive(uint8_t *data, uint8_t length) {
     switch (data[0]) {
         case RAW_HID_CMD:
             via_command_kb(data, length);
+            break;
+        default:
+            raw_hid_receive_user(data, length);
             break;
     }
 }
